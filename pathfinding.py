@@ -44,7 +44,7 @@ class Pathfinder:
                 neighbours.append(self.grid.cells[node_i][node_j + 1])
     
             for n in neighbours:
-                if n:
+                if n and n.passable:
                     g = math.sqrt((start.x - n.x)**2 + (start.y - n.y)**2)
                     h = math.sqrt((n.x - goal.x)**2 + (n.y - goal.y)**2)
                     f = g + h

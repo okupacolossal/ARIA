@@ -2,7 +2,7 @@
 import random
 
 class Cell:
-    def __init__(self, x, y, i, j, color=(255, 255, 255)):
+    def __init__(self, x, y, i, j, color=(60, 60, 60)):
         self.x = x
         self.y = y
         self.i = i
@@ -16,12 +16,14 @@ class Road:
         self.cell1 = cell1
         self.cell2 = cell2
         self.width = width
+        self.color = (60, 60, 60)
 
 class Building:
     def __init__(self, grid):
-        self.width = random.randint(1, 3)
-        self.height = random.randint(1, 3)
-        self.location = (random.randint(0, self.width), random.randint(0, self.height))
+
+        self.width = random.randint(2, 8)
+        self.height = random.randint(2, 4)
+        self.location = (random.randint(0, grid.width - self.width), random.randint(0, grid.height - self.height))
         self.color = (random.randint(100, 255), random.randint(100, 255), random.randint(100, 255))
 
         self.top_left_cell = grid.cells[self.location[0]][self.location[1]]
@@ -29,23 +31,43 @@ class Building:
         self.top_right_cell = grid.cells[self.location[0] + self.width - 1][self.location[1]]
         self.bottom_left_cell = grid.cells[self.location[0]][self.location[1] + self.height - 1]
 
-        self.roads = {
-            "top": [],
-            "bottom": [],
-            "left": [],
-            "right": [],
-        }
+        self.top_left_cell.color = self.color
 
-        curr_cell = grid.cells[self.location[0]][self.location[1]]
+        possible_cells = [grid.cells[self.location[0] + i][self.location[1] + j] for i in range(self.width) for j in range(self.height)]
 
-        for i in range(self.width * 2):
-            if i < self.width / 2:
-                if 
+        for cell in possible_cells:
+            if not cell.passable:
+                return
 
+        for i in range(self.width):
+            for j in range(self.height):
+                cell = grid.cells[self.location[0] + i][self.location[1] + j]
+                cell.color = self.color
+                cell.passable = False
 
+        # top side loop
+        for i in range(self.location[0], self.location[0] + self.width):
 
-
+            if i + 1 < grid.width and not grid.cells[i + 1][self.location[1]].passable:
+                road = grid.roads[((i, self.location[1]), (i + 1, self.location[1]))]
+                road.color = self.color
         
+        for i in range(self.location[0], self.location[0] + self.width):
+            if i + 1 < grid.width and not grid.cells[i + 1][self.location[1] + self.height - 1].passable:
+                road = grid.roads[((i, self.location[1] + self.height - 1), (i + 1, self.location[1] + self.height - 1))]
+                road.color = self.color
+        
+        for i in range(self.location[1], self.location[1] + self.height):
+            if i + 1 < grid.height and not grid.cells[self.location[0]][i + 1].passable:
+                road = grid.roads[((self.location[0], i), (self.location[0], i + 1))]
+                road.color = self.color
+
+        for i in range(self.location[1], self.location[1] + self.height):
+            if i + 1 < grid.height and not grid.cells[self.location[0] + self.width - 1][i + 1].passable:
+                road = grid.roads[((self.location[0] + self.width - 1, i), (self.location[0] + self.width - 1, i + 1))]
+                road.color = self.color
+
+
         
 class Grid:
     def __init__(self, width, height, grid_pixel_width, grid_pixel_height, screen_width, screen_height, n_blocks):
@@ -86,8 +108,13 @@ class Grid:
                     yield
 
         self.initialized = True
+
+        self.generate_buildings()
             
-            
+    def generate_buildings(self):
+        for _ in range(self.number_blocks):
+            building = Building(self)
+            self.buildings.append(building)
 
     def clear_passages(self):
 

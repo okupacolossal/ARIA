@@ -8,7 +8,7 @@ import pathfinding
 
 FPS = 60
 TITLE = "ARIA"
-INIT_STEPS_PER_FRAME = 20
+INIT_STEPS_PER_FRAME = 200
 
 def main():
     pygame.init()
@@ -17,7 +17,7 @@ def main():
     clock = pygame.time.Clock()
 
     game = game_module.Game()
-    grid = map.Grid(26, 26, 600, 600, constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT, 12)
+    grid = map.Grid(128, 128, 600, 600, constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT, 100)
     grid_init = grid.initialize()
     pathfinder = pathfinding.Pathfinder(grid)
 

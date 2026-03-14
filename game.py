@@ -14,7 +14,7 @@ class Game:
     def draw(self, grid, screen):
         
         for road in grid.roads.values():
-            pygame.draw.line(screen, constants.GRAY, (road.cell1.x, road.cell1.y), (road.cell2.x, road.cell2.y), road.width)
+            pygame.draw.line(screen, road.color, (road.cell1.x, road.cell1.y), (road.cell2.x, road.cell2.y), road.width)
 
         for cell in grid.cells:
             for c in cell:
