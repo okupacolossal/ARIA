@@ -15,5 +15,9 @@ class Station:
 class Person:
     def __init__(self, location):
         self.location = location
+        self.i = location.i
+        self.j = location.j
+        self.x = location.x
+        self.y = location.y
         self.color = constants.BLUE
         self.lifetime = 6

@@ -89,7 +89,8 @@ def main():
                         grid_settings=selected_settings,
                         total_init_steps=get_grid_init_total_steps(grid.width, grid.height),
                     )
-                    pathfinder = pathfinding.Pathfinder()
+                    game.pathfinder = pathfinding.Pathfinder()
+                    game.grid = grid 
                     init_steps_done = 0
                     state = "loading"
                     state_start_ticks = pygame.time.get_ticks()
@@ -97,7 +98,6 @@ def main():
             if state == "playing" and event.type == pygame.MOUSEBUTTONDOWN:
                 if grid is not None and grid.initialized:
                     mouse_pos = pygame.mouse.get_pos()
-                    pathfinder.cell_click(game.stations[0].closest_passable, mouse_pos, grid)
 
         # --- Update ---
         if state == "loading" and grid is not None:
@@ -109,7 +109,7 @@ def main():
                     break
             if grid.initialized:
                 spawn_cell = get_random_station_cell(grid)
-                game.add_station(station=entities.Station(spawn_cell, grid, pathfinder))
+                game.add_station(station=entities.Station(spawn_cell, grid, game.pathfinder))
                 state = "playing"
                 state_start_ticks = pygame.time.get_ticks()
 

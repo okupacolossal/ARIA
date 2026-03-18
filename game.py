@@ -4,6 +4,8 @@ import os
 from ui.hud import RetroHud
 import generations
 import entities
+import random
+from helpers import Helpers as hlp
 
 class Game:
     def __init__(self): 
@@ -51,7 +53,10 @@ class Game:
 
         if people_timer >= self.generations_handler.person_spawn_interval * 1000:
             self.people_tick = self.current_tick
-            entities.Person(self.stations[0].closest_passable)
+
+            self.people.append(entities.Person(hlp.get_random_passable(self.grid)))
+        
+            
           
 
     def draw(self, grid, screen):
