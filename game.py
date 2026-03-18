@@ -22,4 +22,4 @@ class Game:
                     pygame.draw.circle(screen, c.color, (c.x, c.y), grid.cell_radius)
 
         for station in self.stations:
-            pygame.draw.circle(screen, constants.BLUE, (station.location.x, station.location.y), 10)
+            pygame.draw.circle(screen, constants.BLUE, (station.location.x, station.location.y), 5)

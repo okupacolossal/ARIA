@@ -2,14 +2,10 @@ import heapq
 import math
 
 class Pathfinder:
-    def __init__(self, grid):
-        self.grid = grid
+    def __init__(self):
         self.selected_cell = None
 
-    def astar(self, start, goal):
-
-        cells = self.grid.cells
-
+    def astar(self, start, goal, grid):
         open_list = []
         closed_set = set()
     
@@ -34,14 +30,14 @@ class Pathfinder:
             closed_set.add((node_i, node_j))
             neighbours = []
             
-            if node_i + 1 < self.grid.width:
-                neighbours.append(self.grid.cells[node_i + 1][node_j])
+            if node_i + 1 < grid.width:
+                neighbours.append(grid.cells[node_i + 1][node_j])
             if node_i - 1 >= 0:
-                neighbours.append(self.grid.cells[node_i - 1][node_j])
+                neighbours.append(grid.cells[node_i - 1][node_j])
             if node_j - 1 >= 0:
-                neighbours.append(self.grid.cells[node_i][node_j - 1])
-            if node_j + 1 < self.grid.height:
-                neighbours.append(self.grid.cells[node_i][node_j + 1])
+                neighbours.append(grid.cells[node_i][node_j - 1])
+            if node_j + 1 < grid.height:
+                neighbours.append(grid.cells[node_i][node_j + 1])
     
             for n in neighbours:
                 if n and n.passable:
@@ -57,21 +53,49 @@ class Pathfinder:
 
         current = (goal.i, goal.j)
         while current is not None and current in came_from:
-            self.grid.cells[current[0]][current[1]].color = (255, 0, 0)  # Mark the path in red
+            grid.cells[current[0]][current[1]].color = (255, 0, 0)  # Mark the path in red
             current = came_from[current]
                 
             
+    def get_closest_passable(self, cell, grid):
+
+        open_list = [cell]
+        visited = set()
+        
+        while open_list:   
+                
+
+                current = open_list.pop(0)
+
+                if current in visited:
+                    continue
+                
+                neighbours = {
+                    (current.i + 1, current.j),
+                    (current.i - 1, current.j),
+                    (current.i, current.j - 1),
+                    (current.i, current.j + 1)
+                }
+                
+                visited.add(current)
+
+                for n in neighbours:
+                    if grid.cells[n[0]][n[1]]:
+                        cell = grid.cells[n[0]][n[1]]
+                        open_list.append(cell)
+                        if cell.passable:
+                            return cell
+                
+     
+        
 
 
-
-
-
-    def cell_click(self, mouse_pos):
+    def cell_click(self, departing_point, mouse_pos, grid):
         mouse_x, mouse_y = mouse_pos
-        for i in self.grid.cells:
+        for i in grid.cells:
             for cell in i:
                 if cell is not None and cell.x <= mouse_x + 5 and cell.x >= mouse_x - 5 and cell.y <= mouse_y + 5 and cell.y >= mouse_y - 5:
                     selected_cell = cell
 
-                    astar_result = self.astar(self.grid.cells[13][13], selected_cell)  # Example: path from center to clicked cell
+                    astar_result = self.astar(departing_point, selected_cell, grid)  # Example: path from center to clicked cell
                     return cell

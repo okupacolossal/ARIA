@@ -5,21 +5,46 @@ import constants
 import entities
 import game as game_module
 import pathfinding
+from ui.loading_screen import RetroLoadingScreen
 
 FPS = 60
 TITLE = "ARIA"
-INIT_STEPS_PER_FRAME = 200
+INIT_TIME_BUDGET_MS = 14
+INIT_CHUNK_SIZE = 4096
+GRID_SETTINGS = {
+    "width": 128,
+    "height": 128,
+    "grid_pixel_width": 600,
+    "grid_pixel_height": 600,
+}
+
+
+def get_grid_init_total_steps(width, height):
+    cell_steps = width * height
+    road_steps = ((width - 1) * height) + (width * (height - 1))
+    return cell_steps + road_steps
 
 def main():
     pygame.init()
     screen = pygame.display.set_mode((constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT))
-    pygame.display.set_caption(TITLE)
+    pygame.display.set_caption(TITLE) 
     clock = pygame.time.Clock()
 
-    game = game_module.Game()
-    grid = map.Grid(128, 128, 600, 600, constants.SCREEN_WIDTH, constants.SCREEN_HEIGHT, 100)
-    grid_init = grid.initialize()
-    pathfinder = pathfinding.Pathfinder(grid)
+    selected_settings = GRID_SETTINGS.copy()
+    loading_screen = RetroLoadingScreen(
+        title=TITLE,
+        grid_settings=selected_settings,
+        total_init_steps=1,
+    )
+
+    game = None
+    grid = None
+    grid_init = None
+    pathfinder = None
+
+    state = "config"
+    init_steps_done = 0
+    state_start_ticks = pygame.time.get_ticks()
 
     running = True
     while running:
@@ -31,22 +56,61 @@ def main():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_pos = pygame.mouse.get_pos()
-                pathfinder.cell_click(mouse_pos)
+
+            if state == "config":
+                start_boot = loading_screen.handle_config_event(event)
+                if start_boot:
+                    game = game_module.Game()
+                    grid = map.Grid(
+                        selected_settings["width"],
+                        selected_settings["height"],
+                        selected_settings["grid_pixel_width"],
+                        selected_settings["grid_pixel_height"],
+                        constants.SCREEN_WIDTH,
+                        constants.SCREEN_HEIGHT,
+                    )
+                    grid_init = grid.initialize(chunk_size=INIT_CHUNK_SIZE)
+                    loading_screen.set_loading_profile(
+                        grid_settings=selected_settings,
+                        total_init_steps=get_grid_init_total_steps(grid.width, grid.height),
+                    )
+                    pathfinder = pathfinding.Pathfinder()
+                    init_steps_done = 0
+                    state = "loading"
+                    state_start_ticks = pygame.time.get_ticks()
+
+            if state == "playing" and event.type == pygame.MOUSEBUTTONDOWN:
+                if grid is not None and grid.initialized:
+                    mouse_pos = pygame.mouse.get_pos()
+                    pathfinder.cell_click(game.stations[0].closest_passable, mouse_pos, grid)
+
         # --- Update ---
-        if not grid.initialized:
-            for _ in range(INIT_STEPS_PER_FRAME):
+        if state == "loading" and grid is not None:
+            frame_budget_start = pygame.time.get_ticks()
+            while pygame.time.get_ticks() - frame_budget_start < INIT_TIME_BUDGET_MS:
                 try:
-                    next(grid_init)
+                    init_steps_done += next(grid_init)
                 except StopIteration:
                     break
             if grid.initialized:
-                game.add_station(station=entities.Station(grid.cells[13][13]))
+                game.add_station(station=entities.Station(grid.cells[13][13], grid, pathfinder))
+                state = "playing"
+                state_start_ticks = pygame.time.get_ticks()
 
         # --- Draw ---
         screen.fill(constants.BLACK)
-        game.draw(grid, screen)
+        elapsed_ms = pygame.time.get_ticks() - state_start_ticks
+
+        if state == "config":
+            loading_screen.draw_configuration(screen=screen, elapsed_ms=elapsed_ms)
+        elif state == "loading":
+            loading_screen.draw(
+                screen=screen,
+                progress_steps=init_steps_done,
+                elapsed_ms=elapsed_ms,
+            )
+        elif state == "playing" and game is not None and grid is not None:
+            game.draw(grid, screen)
 
         pygame.display.flip()
         clock.tick(FPS)
