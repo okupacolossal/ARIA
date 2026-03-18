@@ -1,5 +1,6 @@
 import pygame
 import sys
+import random
 import map
 import constants
 import entities
@@ -23,6 +24,20 @@ def get_grid_init_total_steps(width, height):
     cell_steps = width * height
     road_steps = ((width - 1) * height) + (width * (height - 1))
     return cell_steps + road_steps
+
+
+def get_random_station_cell(grid):
+    passable_cells = [
+        cell
+        for column in grid.cells
+        for cell in column
+        if cell is not None and cell.passable
+    ]
+    if passable_cells:
+        return random.choice(passable_cells)
+
+    all_cells = [cell for column in grid.cells for cell in column if cell is not None]
+    return random.choice(all_cells)
 
 def main():
     pygame.init()
@@ -93,7 +108,8 @@ def main():
                 except StopIteration:
                     break
             if grid.initialized:
-                game.add_station(station=entities.Station(grid.cells[13][13], grid, pathfinder))
+                spawn_cell = get_random_station_cell(grid)
+                game.add_station(station=entities.Station(spawn_cell, grid, pathfinder))
                 state = "playing"
                 state_start_ticks = pygame.time.get_ticks()
 
@@ -110,6 +126,7 @@ def main():
                 elapsed_ms=elapsed_ms,
             )
         elif state == "playing" and game is not None and grid is not None:
+            game.update()
             game.draw(grid, screen)
 
         pygame.display.flip()

@@ -16,6 +16,4 @@ class Person:
     def __init__(self, location):
         self.location = location
         self.color = constants.BLUE
-        self.radius = 5
-
         self.lifetime = 6

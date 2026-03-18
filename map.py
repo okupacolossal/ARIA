@@ -1,5 +1,6 @@
-import math
 import random
+
+
 class Cell:
     def __init__(self, x, y, i, j, color=(60, 60, 60)):
         self.x = x
@@ -31,7 +32,7 @@ class Grid:
         self.cell_radius = 2
         self.cell_offset = self.cell_radius // 2
 
-        self.density = 4
+        self.density = 6
 
         self.offset_x = (screen_width - grid_pixel_width) // 2
         self.offset_y = (screen_height - grid_pixel_height) // 2
