@@ -1,61 +1,41 @@
 import heapq
 import math
+from helpers import Helpers as hlp
 
 class Pathfinder:
     def __init__(self):
         self.selected_cell = None
+        self.last_test_path = None
 
     def astar(self, start, goal, grid):
+
+        def get_neighbours(target):
+            potential_neighbours = [
+            (target.i + 1, target.j),
+            (target.i - 1, target.j),
+            (target.i, target.j + 1),
+            (target.i, target.j - 1)
+            ]
+
+            neighbours = []
+
+            for n in potential_neighbours:
+                if n[0] >= 0 and n[0] < grid.width and n[1] >= 0 and n[1] < grid.height:
+                    neighbours.append(grid.cells[n[0]][n[1]])
+            
+            return neighbours
+            
+        
+        g_score = {'start': 0}  
+        estimated_cost = hlp.get_distance(start, goal)
         open_list = []
         closed_set = set()
-    
-        initial_distance_to_goal = math.sqrt((start.x - goal.x)**2 + (start.y - goal.y)**2)
-        counter = 0
-        heapq.heappush(open_list, (initial_distance_to_goal, counter, start))
 
-        came_from = {}
-        came_from[start.i, start.j] = None  # Start node has no parent
+        ns = get_neighbours(start)
+        print(ns)
 
-        while open_list:
-            f, _,  node = heapq.heappop(open_list)
-            
-            node_i, node_j = node.i, node.j
+        
 
-            if node_i == goal.i and node_j == goal.j:
-                break
-
-            if (node_i, node_j) in closed_set:
-                continue
-
-            closed_set.add((node_i, node_j))
-            neighbours = []
-            
-            if node_i + 1 < grid.width:
-                neighbours.append(grid.cells[node_i + 1][node_j])
-            if node_i - 1 >= 0:
-                neighbours.append(grid.cells[node_i - 1][node_j])
-            if node_j - 1 >= 0:
-                neighbours.append(grid.cells[node_i][node_j - 1])
-            if node_j + 1 < grid.height:
-                neighbours.append(grid.cells[node_i][node_j + 1])
-    
-            for n in neighbours:
-                if n and n.passable:
-                    g = math.sqrt((start.x - n.x)**2 + (start.y - n.y)**2)
-                    h = math.sqrt((n.x - goal.x)**2 + (n.y - goal.y)**2)
-                    f = g + h
-                    heapq.heappush(open_list, (f, counter, n))
-                    counter += 1
-
-                    if (n.i, n.j) not in came_from:  # Only set the parent if it hasn't been set before~
-                        came_from[n.i, n.j] = (node_i, node_j)  # Store the parent of the neighbor
-
-
-        current = (goal.i, goal.j)
-        while current is not None and current in came_from:
-            grid.cells[current[0]][current[1]].color = (255, 0, 0)  # Mark the path in red
-            current = came_from[current]
-                
             
     def get_closest_passable(self, cell, grid):
 
@@ -90,12 +70,25 @@ class Pathfinder:
         
 
 
-    def cell_click(self, departing_point, mouse_pos, grid):
+    def get_clicked_cell(self, mouse_pos, grid):
         mouse_x, mouse_y = mouse_pos
-        for i in grid.cells:
-            for cell in i:
-                if cell is not None and cell.x <= mouse_x + 5 and cell.x >= mouse_x - 5 and cell.y <= mouse_y + 5 and cell.y >= mouse_y - 5:
-                    selected_cell = cell
+        search_radius = max(5, grid.cell_size // 2)
 
-                    astar_result = self.astar(departing_point, selected_cell, grid)  # Example: path from center to clicked cell
+        for column in grid.cells:
+            for cell in column:
+                if cell is None:
+                    continue
+                if abs(cell.x - mouse_x) <= search_radius and abs(cell.y - mouse_y) <= search_radius:
                     return cell
+
+        return None
+
+    def test_path_from_station_click(self, station, mouse_pos, grid):
+        selected_cell = self.get_clicked_cell(mouse_pos, grid)
+        if selected_cell is None:
+            return None
+
+        self.selected_cell = selected_cell
+        start_cell = getattr(station, "closest_passable", station.location)
+        self.last_test_path = self.astar(start_cell, selected_cell, grid)
+        return selected_cell

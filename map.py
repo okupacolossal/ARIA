@@ -14,7 +14,7 @@ class Cell:
 class Road:
     def __init__(self, cell1, cell2, width=1):
         self.cell1 = cell1
-        self.cell2 = cell2
+        self.cell2 = cell2  
         self.width = width
         self.color = (60, 60, 60)
 

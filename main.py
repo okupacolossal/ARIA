@@ -98,8 +98,14 @@ def main():
             if state == "playing" and event.type == pygame.MOUSEBUTTONDOWN:
                 if grid is not None and grid.initialized:
                     mouse_pos = pygame.mouse.get_pos()
+                    if event.button == 1 and game is not None and game.stations and game.pathfinder is not None:
+                        game.pathfinder.test_path_from_station_click(
+                            station=game.stations[0],
+                            mouse_pos=mouse_pos,
+                            grid=grid,
+                        )
 
-        # --- Update ---
+        # --- Update ---  
         if state == "loading" and grid is not None:
             frame_budget_start = pygame.time.get_ticks()
             while pygame.time.get_ticks() - frame_budget_start < INIT_TIME_BUDGET_MS:
@@ -109,7 +115,7 @@ def main():
                     break
             if grid.initialized:
                 spawn_cell = get_random_station_cell(grid)
-                game.add_station(station=entities.Station(spawn_cell, grid, game.pathfinder))
+                game.add_station(station=entities.Station(spawn_cell, grid, game.pathfinder, game))
                 state = "playing"
                 state_start_ticks = pygame.time.get_ticks()
 

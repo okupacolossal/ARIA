@@ -39,9 +39,6 @@ class Game:
     def add_station(self, station):
         self.stations.append(station)
 
-    def add_person(self, person):
-        self.people.append(person)
-
     def update(self):
         self.current_tick = pygame.time.get_ticks()
         elapsed = self.current_tick - self.start_tick
@@ -53,8 +50,13 @@ class Game:
 
         if people_timer >= self.generations_handler.person_spawn_interval * 1000:
             self.people_tick = self.current_tick
+            self.people.append(entities.Person(hlp.get_random_passable(self.grid), self))
 
-            self.people.append(entities.Person(hlp.get_random_passable(self.grid)))
+        for station in self.stations:
+            station.update()
+        
+        for person in self.people:
+            person.update()
         
             
           
