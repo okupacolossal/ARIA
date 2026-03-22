@@ -20,23 +20,59 @@ class Pathfinder:
             neighbours = []
 
             for n in potential_neighbours:
-                if n[0] >= 0 and n[0] < grid.width and n[1] >= 0 and n[1] < grid.height:
+                if n[0] >= 0 and n[0] < grid.width and n[1] >= 0 and n[1] < grid.height and grid.cells[n[0]][n[1]].passable:
                     neighbours.append(grid.cells[n[0]][n[1]])
             
             return neighbours
-            
         
-        g_score = {'start': 0}  
-        estimated_cost = hlp.get_distance(start, goal)
+        def heuristic(cell1, goal):
+            return hlp.get_distance(cell1, goal)
+        
+        def g_func(cell1, cell2, goal):
+            return hlp.get_distance(cell1, cell2)
+        
+
+    
+        
+        g_score = {}
+        g_score[start] = 0
+        estimated_cost = g_score[start] + hlp.get_distance(start, goal)
         open_list = []
         closed_set = set()
+        counter = 0
 
-        ns = get_neighbours(start)
-        print(ns)
+        path = []
 
+        heapq.heappush(open_list, (estimated_cost, counter, start))
         
+        while open_list:
 
-            
+            _, _, current = heapq.heappop(open_list)
+            path.append(current)
+
+            if current == goal:
+                for node in path:
+                    node.color = (255, 0)
+                break
+
+            closed_set.add(current) 
+
+            neighbours = get_neighbours(current)
+
+            for n in neighbours:
+
+                if n in closed_set:
+                    continue
+
+                h = heuristic(n, goal)
+                g = g_score[current] + hlp.get_distance(current, n)
+                f_score = g + h
+                counter += 1
+
+                if g < g_score.get(n, float('inf')):
+                    g_score[n] = g
+                    heapq.heappush(open_list, (f_score, counter, n))
+                           
     def get_closest_passable(self, cell, grid):
 
         open_list = [cell]
@@ -65,30 +101,24 @@ class Pathfinder:
                         open_list.append(cell)
                         if cell.passable:
                             return cell
-                
-     
-        
+    
+    def get_closest_cell_to_click(self, mouse_pos, grid):
+        # get closest cell to mouse click
+            closest_cell = None
+            closest_distance = float('inf')
 
+            mouse_pos = mouse_pos.x, mouse_pos.y
 
-    def get_clicked_cell(self, mouse_pos, grid):
-        mouse_x, mouse_y = mouse_pos
-        search_radius = max(5, grid.cell_size // 2)
+            for column in grid.cells:
+                for cell in column:
+                    if cell is not None:
+                        distance = hlp.get_distance(cell, mouse_pos)
+                        if distance < closest_distance:
+                            closest_distance = distance
+                            closest_cell = cell
 
-        for column in grid.cells:
-            for cell in column:
-                if cell is None:
-                    continue
-                if abs(cell.x - mouse_x) <= search_radius and abs(cell.y - mouse_y) <= search_radius:
-                    return cell
-
-        return None
+            return closest_cell
 
     def test_path_from_station_click(self, station, mouse_pos, grid):
-        selected_cell = self.get_clicked_cell(mouse_pos, grid)
-        if selected_cell is None:
-            return None
-
-        self.selected_cell = selected_cell
-        start_cell = getattr(station, "closest_passable", station.location)
-        self.last_test_path = self.astar(start_cell, selected_cell, grid)
-        return selected_cell
+        closest_cell = self.get_closest_cell_to_click(mouse_pos, grid)
+        self.astar(station, closest_cell, grid)
