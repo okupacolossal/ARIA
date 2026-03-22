@@ -28,13 +28,11 @@ class Pathfinder:
         def heuristic(cell1, goal):
             return hlp.get_distance(cell1, goal)
         
-        def g_func(cell1, cell2, goal):
-            return hlp.get_distance(cell1, cell2)
-        
 
     
         
         g_score = {}
+        came_from = {}  
         g_score[start] = 0
         estimated_cost = g_score[start] + hlp.get_distance(start, goal)
         open_list = []
@@ -51,9 +49,7 @@ class Pathfinder:
             path.append(current)
 
             if current == goal:
-                for node in path:
-                    node.color = (255, 0)
-                break
+                return came_from, path
 
             closed_set.add(current) 
 
@@ -71,6 +67,7 @@ class Pathfinder:
 
                 if g < g_score.get(n, float('inf')):
                     g_score[n] = g
+                    came_from[n] = current
                     heapq.heappush(open_list, (f_score, counter, n))
                            
     def get_closest_passable(self, cell, grid):
@@ -107,12 +104,14 @@ class Pathfinder:
             closest_cell = None
             closest_distance = float('inf')
 
-            mouse_pos = mouse_pos.x, mouse_pos.y
+            x, y = mouse_pos
+
+            
 
             for column in grid.cells:
                 for cell in column:
                     if cell is not None:
-                        distance = hlp.get_distance(cell, mouse_pos)
+                        distance = math.sqrt((cell.x - x)**2 + (cell.y - y)**2)
                         if distance < closest_distance:
                             closest_distance = distance
                             closest_cell = cell
