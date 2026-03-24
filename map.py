@@ -1,6 +1,7 @@
 import osmnx as ox
 from settings import *
 import pygame
+import os
 
 class Map():
     
@@ -9,9 +10,13 @@ class Map():
          self.nodes = self.get_map()
 
     def get_map(self):
-        place_name = "Porto, Portugal"
-        center = (41.1579, -8.6291)  # Porto city center
-        self.G = ox.graph_from_point(center, dist=1500, network_type="drive")
+         
+        if os.path.exists("porto_map.graphml"):
+            self.G = ox.load_graphml("porto_map.graphml")
+        else:
+            center = (41.1579, -8.6291)  # Porto city center 
+            self.G = ox.graph_from_point(center, dist=1500, network_type="drive")  
+            ox.save_graphml(self.G, "porto_map.graphml")
         
         latitudes = []
         longitudes = []
