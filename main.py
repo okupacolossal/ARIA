@@ -1,8 +1,7 @@
 import sys
 import map
 import pygame
-
-loaded_map = map.Map()
+from loading_screen import show_retro_loading_screen
 
 
 def main() -> None:
@@ -10,6 +9,7 @@ def main() -> None:
 	pygame.display.set_caption("ARIA")
 	screen = pygame.display.set_mode((960, 540))
 	clock = pygame.time.Clock()
+	loaded_map = show_retro_loading_screen(screen, clock, lambda: map.Map())
 
 	running = True
 	while running:
