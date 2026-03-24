@@ -2,6 +2,7 @@ import osmnx as ox
 from settings import *
 import pygame
 import os
+from helpers import Helpers as hlp
 
 class Map():
     
@@ -15,26 +16,29 @@ class Map():
             self.G = ox.load_graphml("porto_map.graphml")
         else:
             center = (41.1579, -8.6291)  # Porto city center 
-            self.G = ox.graph_from_point(center, dist=1500, network_type="drive")  
+            self.G = ox.graph_from_point(center, dist=5000, network_type="drive")  
             ox.save_graphml(self.G, "porto_map.graphml")
         
-        latitudes = []
-        longitudes = []
+        self.latitudes = []
+        self.longitudes = []
  
         screen_nodes = {}
         
         for _, data in self.G.nodes(data=True):
-            latitudes.append(data['y'])
-            longitudes.append(data['x'])
+            self.latitudes.append(data['y'])
+            self.longitudes.append(data['x'])
         
-        min_latitude = min(latitudes)
-        max_latitude = max(latitudes)
-        min_longitude = min(longitudes)
-        max_longitude = max(longitudes)
+        self.min_latitude = min(self.latitudes)
+        self.max_latitude = max(self.latitudes)
+        self.min_longitude = min(self.longitudes)
+        self.max_longitude = max(self.longitudes)
 
         for node, data in self.G.nodes(data=True):
-            x = int((data['x'] - min_longitude) / (max_longitude - min_longitude) * SCREEN_WIDTH)
-            y = int((1 -(data['y'] - min_latitude) / (max_latitude - min_latitude)) * SCREEN_HEIGHT)
+            x, y = hlp.transform_coordinates(
+                data['y'], data['x'], 
+                self.min_latitude, self.max_latitude, 
+                self.min_longitude, self.max_longitude
+            )
             screen_nodes[node] = (x, y)
 
         return screen_nodes
