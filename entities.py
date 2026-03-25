@@ -1,4 +1,5 @@
 import pygame
+import random
 from helpers import Helpers as hlp
 
 
@@ -66,7 +67,32 @@ class Hospital:
 
 
 class Person:
-    def __init__(self, name, x, y):
+    def __init__(self, name, x, y, timer_seconds: float = 30.0, spawn_time: float = 0.0):
         self.name = name
         self.x = x
         self.y = y
+        self.timer_seconds = timer_seconds
+        self.spawn_time = spawn_time
+
+    @classmethod
+    def create_random(
+        cls,
+        name: str,
+        map,
+        edge_margin_ratio: float = 0.05,
+        timer_seconds: float = 30.0,
+        spawn_time: float = 0.0,
+    ):
+        latitude_range = map.max_latitude - map.min_latitude
+        longitude_range = map.max_longitude - map.min_longitude
+
+        lat_margin = latitude_range * edge_margin_ratio
+        lon_margin = longitude_range * edge_margin_ratio
+
+        random_latitude = random.uniform(map.min_latitude + lat_margin, map.max_latitude - lat_margin)
+        random_longitude = random.uniform(map.min_longitude + lon_margin, map.max_longitude - lon_margin)
+
+        return cls(name, random_latitude, random_longitude, timer_seconds=timer_seconds, spawn_time=spawn_time)
+
+    def is_alive(self, now_seconds: float) -> bool:
+        return (now_seconds - self.spawn_time) < self.timer_seconds

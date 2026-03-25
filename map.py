@@ -49,7 +49,7 @@ class Map():
         for u, v, data in self.G.edges(data=True):
             x1, y1 = self.nodes[u]
             x2, y2 = self.nodes[v]
-            pygame.draw.line(self.screen, (60, 60, 60), (x1, y1), (x2, y2), 1)
+            pygame.draw.line(self.screen, (24, 85, 48), (x1, y1), (x2, y2), 1)
 
         # Draw path edges on top so they are clearly separated from normal roads.
         if isinstance(self.path, dict):
@@ -57,7 +57,7 @@ class Map():
                 if node in self.nodes and parent in self.nodes:
                     x1, y1 = self.nodes[parent]
                     x2, y2 = self.nodes[node]
-                    pygame.draw.line(self.screen, (255, 0, 0), (x1, y1), (x2, y2), 3)
+                    pygame.draw.line(self.screen, (255, 198, 92), (x1, y1), (x2, y2), 3)
         elif isinstance(self.path, list):
             # Exact path format: [node_a, node_b, node_c, ...]
             cleaned_nodes = [node for node in self.path if node in self.nodes]
@@ -67,7 +67,7 @@ class Map():
                     v = cleaned_nodes[i + 1]
                     x1, y1 = self.nodes[u]
                     x2, y2 = self.nodes[v]
-                    pygame.draw.line(self.screen, (255, 0, 0), (x1, y1), (x2, y2), 3)
+                    pygame.draw.line(self.screen, (255, 198, 92), (x1, y1), (x2, y2), 3)
             else:
                 # Fallback format: [(u, v), (v, w), ...]
                 for edge in self.path:
@@ -76,7 +76,7 @@ class Map():
                         if u in self.nodes and v in self.nodes:
                             x1, y1 = self.nodes[u]
                             x2, y2 = self.nodes[v]
-                            pygame.draw.line(self.screen, (255, 0, 0), (x1, y1), (x2, y2), 3)
+                            pygame.draw.line(self.screen, (255, 198, 92), (x1, y1), (x2, y2), 3)
 
 
              
