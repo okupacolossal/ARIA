@@ -15,7 +15,7 @@ class Map():
         if os.path.exists("porto_map.graphml"):
             self.G = ox.load_graphml("porto_map.graphml")
         else:
-            center = (41.1579, -8.6291)  # Porto city center 
+            center = (41.14961, -8.61099)  # Porto city center 
             self.G = ox.graph_from_point(center, dist=5000, network_type="drive")  
             ox.save_graphml(self.G, "porto_map.graphml")
         
