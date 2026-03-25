@@ -1,15 +1,16 @@
 import pygame
 import random
 from helpers import Helpers as hlp
-
+import heapq
 
 class Entities:
-    def __init__(self, map):
+    def __init__(self, map, pf):
         self.map = map
         self.sprites = self._load_sprites()
+        self.pathfinding = pf
 
         self.hospitals = []
-        self.hospitals.append(Hospital("Hospital Santa Maria", 41.1600076, -8.6095796))
+        self.hospitals.append(Hospital("Hospital Santa Maria", 41.1600076, -8.6095796, pf))
 
         self.people = []
 
@@ -27,7 +28,7 @@ class Entities:
             "hospital": self._load_sprite("images/hospital.png", (22, 22)),
             "person": self._load_sprite("images/person.png", (16, 16)),
         }
-
+ 
     def _draw_sprite_at_geo(self, screen, sprite: pygame.Surface, latitude: float, longitude: float, map):
         x, y = hlp.transform_coordinates(
             latitude,
@@ -58,12 +59,44 @@ class Entities:
                 person.y,
                 map,
             )
-
+    
+    def update(self):
+        for hospital in self.entities["hospitals"]:
+            hospital.update(self.entities["people"])
 class Hospital:
-    def __init__(self, name, x, y):
+    def __init__(self, name, x, y, pf):
         self.name = name
         self.x = x
         self.y = y
+        self.pathfinding = pf
+        self.pursuit = False
+    
+    def analyze_surroundings(self, people): 
+
+        if self.pursuit:
+            return
+
+        list_of_people = []
+        for person in people:
+
+            if person.rescuer:
+                continue  # Skip if the person is already being rescued
+
+            heapq.heappush(list_of_people, (hlp.get_distance(self.x, self.y, person.x, person.y), person))
+
+        closest = heapq.heappop(list_of_people)[1] if list_of_people else None
+
+        self.map.path = self.pathfinding.run_astar(self, closest) if closest else None
+
+        self.pursuit = True
+
+
+             
+        
+
+    def update(self, people):
+        self.analyze_surroundings(people)
+    
 
 
 class Person:
@@ -73,6 +106,7 @@ class Person:
         self.y = y
         self.timer_seconds = timer_seconds
         self.spawn_time = spawn_time
+        self.rescuer = None
 
     @classmethod
     def create_random(

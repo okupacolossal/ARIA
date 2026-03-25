@@ -17,3 +17,17 @@ class Helpers:
                 min_distance = distance
                 closest_node = node_id
         return closest_node
+    
+    @staticmethod
+    def get_distance(lat1, lon1, lat2, lon2):
+        # Haversine formula to calculate distance between two lat/lon points
+        from math import radians, cos, sin, sqrt, atan2
+
+        R = 6371  # Earth radius in kilometers
+
+        dlat = radians(lat2 - lat1)
+        dlon = radians(lon2 - lon1)
+        a = sin(dlat / 2) ** 2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2) ** 2
+        c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        distance = R * c
+        return distance

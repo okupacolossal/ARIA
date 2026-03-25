@@ -2,30 +2,11 @@ from helpers import Helpers as hlp
 import heapq
 
 class Pathfinding:
-    def __init__(self, map, entities):
+    def __init__(self, map):
         self.map = map
-        self.entities = entities
     
-    def get_cell_from_click(self, click_pos):
-        for node_id, (x, y) in self.map.nodes.items():
-            if (x - click_pos[0]) ** 2 + (y - click_pos[1]) ** 2 < 100:  # 10 pixels radius
-                closest_hospital = self.entities.entities["hospitals"][0]  # Assuming you want to start from the first hospital
-                hospital_screen_x, hospital_screen_y = hlp.transform_coordinates(
-                    closest_hospital.x,
-                    closest_hospital.y,
-                    self.map.min_latitude,
-                    self.map.max_latitude,
-                    self.map.min_longitude,
-                    self.map.max_longitude,
-                )
-                self.map.path = self.run_astar(
-                    hlp.get_closest_node(hospital_screen_y, hospital_screen_x, self.map),
-                    goal=node_id,
-                )  # You can set a goal node here
-                return
-        return None
-    
-    def reconstruct_path(self, came_from, current):
+    @staticmethod
+    def reconstruct_path(came_from, current):
 
         path = [current]
         
@@ -36,8 +17,7 @@ class Pathfinding:
         path = path[::-1]  # Reverse the path
 
         return path
-
-
+    
     def run_astar(self, start, goal):
 
         print('Running A* algorithm from', start, 'to', goal) 
@@ -89,9 +69,12 @@ class Pathfinding:
                     came_from[neighbor] = current
 
         return came_from
+    
+    def get_closest_cell(self):
+        pass
+         
 
-
-
+  
         
     
     

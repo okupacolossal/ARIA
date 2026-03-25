@@ -34,18 +34,13 @@ class Game:
 			lambda: Map(self.screen),
 		)
 		self.running = True
-		self.entities = entities.Entities(self.loaded_map)
-		self.generations = Generations(self.entities, self.loaded_map)
-		self.pathfinding = Pathfinding(self.loaded_map, self.entities)
 
+		self.pathfinding = Pathfinding(self.loaded_map)
+		self.entities = entities.Entities(self.loaded_map, self.pathfinding)
+		self.generations = Generations(self.entities, self.loaded_map)
 	def _handle_keydown(self, key: int) -> None:
 		if key == pygame.K_ESCAPE:
 			self.running = False
-
-	def _handle_mouse_click(self, event: pygame.event.Event) -> None:
-		self.last_mouse_click_pos = event.pos
-		self.last_mouse_button = event.button
-		self.pathfinding.get_cell_from_click(event.pos)
 
 	def _handle_events(self) -> None:
 		for event in pygame.event.get():
@@ -117,6 +112,7 @@ class Game:
 
 			self.screen.fill((7, 12, 9))
 			self.loaded_map.draw()
+			self.entities.update()
 			self.entities.draw(self.screen, self.loaded_map)
 			self._draw_retro_overlay()
 			self._draw_generations_hud(now_seconds)
