@@ -8,7 +8,7 @@ class Helpers:
         return (x, y)
     
     @staticmethod
-    def get_closest_node(self, latitude, longitude, map):
+    def get_closest_node(latitude, longitude, map):
         closest_node = None
         min_distance = float('inf')
         for node_id, (x, y) in map.nodes.items():
