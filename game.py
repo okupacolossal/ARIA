@@ -22,9 +22,9 @@ class Game:
 			self.clock,
 			lambda: Map(self.screen),
 		)
-		self.pathfinding = Pathfinding(self.loaded_map)
 		self.running = True
 		self.entities = entities.Entities(self.loaded_map)
+		self.pathfinding = Pathfinding(self.loaded_map, self.entities)
 
 	def _handle_keydown(self, key: int) -> None:
 		if key == pygame.K_ESCAPE:
@@ -33,6 +33,7 @@ class Game:
 	def _handle_mouse_click(self, event: pygame.event.Event) -> None:
 		self.last_mouse_click_pos = event.pos
 		self.last_mouse_button = event.button
+		self.pathfinding.get_cell_from_click(event.pos)
 
 	def _handle_events(self) -> None:
 		for event in pygame.event.get():
