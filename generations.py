@@ -38,6 +38,8 @@ class Generations:
                 edge_margin_ratio=self.spawn_edge_margin_ratio,
                 timer_seconds=self.person_timer_seconds,
                 spawn_time=now_seconds,
+                pf=self.entities.pathfinding
+
             )
             self.entities.people.append(person)
 

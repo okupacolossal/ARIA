@@ -62,19 +62,20 @@ class Entities:
     
     def update(self):
         for hospital in self.entities["hospitals"]:
-            hospital.update(self.entities["people"])
+            hospital.update(self.people)
 class Hospital:
-    def __init__(self, name, x, y, pf):
+    def __init__(self, name, long, lat, pf):
         self.name = name
-        self.x = x
-        self.y = y
+        self.long = long
+        self.lat = lat
         self.pathfinding = pf
+        self.map = pf.map
+        
         self.pursuit = False
+
+        self.closest_cell = self.pathfinding.get_closest_cell(self.x, self.y)
     
     def analyze_surroundings(self, people): 
-
-        if self.pursuit:
-            return
 
         list_of_people = []
         for person in people:
@@ -82,11 +83,17 @@ class Hospital:
             if person.rescuer:
                 continue  # Skip if the person is already being rescued
 
-            heapq.heappush(list_of_people, (hlp.get_distance(self.x, self.y, person.x, person.y), person))
+            
+            distance = hlp.get_distance(self.y, self.x, person.y, person.x)
+
+            heapq.heappush(list_of_people, (distance, person))
 
         closest = heapq.heappop(list_of_people)[1] if list_of_people else None
 
-        self.map.path = self.pathfinding.run_astar(self, closest) if closest else None
+        print('Found path!')
+
+        self.map.path = self.pathfinding.run_astar(self.closest_cell, closest.closest_cell)
+        print("Path set:", self.map.path)
 
         self.pursuit = True
 
@@ -100,13 +107,16 @@ class Hospital:
 
 
 class Person:
-    def __init__(self, name, x, y, timer_seconds: float = 30.0, spawn_time: float = 0.0):
+    def __init__(self, name, x, y, timer_seconds: float = 30.0, spawn_time: float = 0.0, pf=None):
         self.name = name
         self.x = x
         self.y = y
         self.timer_seconds = timer_seconds
         self.spawn_time = spawn_time
         self.rescuer = None
+        self.pf = pf
+
+        self.closest_cell = pf.get_closest_cell(self.x, self.y) if pf else None
 
     @classmethod
     def create_random(
@@ -116,6 +126,7 @@ class Person:
         edge_margin_ratio: float = 0.05,
         timer_seconds: float = 30.0,
         spawn_time: float = 0.0,
+        pf = None,
     ):
         latitude_range = map.max_latitude - map.min_latitude
         longitude_range = map.max_longitude - map.min_longitude
@@ -126,7 +137,7 @@ class Person:
         random_latitude = random.uniform(map.min_latitude + lat_margin, map.max_latitude - lat_margin)
         random_longitude = random.uniform(map.min_longitude + lon_margin, map.max_longitude - lon_margin)
 
-        return cls(name, random_latitude, random_longitude, timer_seconds=timer_seconds, spawn_time=spawn_time)
+        return cls(name, random_latitude, random_longitude, timer_seconds=timer_seconds, spawn_time=spawn_time, pf=pf)
 
     def is_alive(self, now_seconds: float) -> bool:
         return (now_seconds - self.spawn_time) < self.timer_seconds

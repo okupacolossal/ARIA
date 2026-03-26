@@ -1,5 +1,6 @@
 from helpers import Helpers as hlp
 import heapq
+import osmnx as ox
 
 class Pathfinding:
     def __init__(self, map):
@@ -70,8 +71,9 @@ class Pathfinding:
 
         return came_from
     
-    def get_closest_cell(self):
-        pass
+    def get_closest_cell(self, latitude, longitude): 
+        node_id = ox.nearest_nodes(self.map.G, X=longitude, Y=latitude)
+        return node_id
          
 
   

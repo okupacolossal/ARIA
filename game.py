@@ -49,7 +49,7 @@ class Game:
 			elif event.type == pygame.KEYDOWN:
 				self._handle_keydown(event.key)
 			elif event.type == pygame.MOUSEBUTTONDOWN:
-				self._handle_mouse_click(event)
+				pass
 
 	def _draw_generations_hud(self, now_seconds: float) -> None:
 		panel_x, panel_y = 14, 14
@@ -111,8 +111,9 @@ class Game:
 			self.generations.update(now_seconds)
 
 			self.screen.fill((7, 12, 9))
-			self.loaded_map.draw()
 			self.entities.update()
+
+			self.loaded_map.draw()
 			self.entities.draw(self.screen, self.loaded_map)
 			self._draw_retro_overlay()
 			self._draw_generations_hud(now_seconds)
