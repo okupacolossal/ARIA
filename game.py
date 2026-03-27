@@ -111,7 +111,7 @@ class Game:
 			self.generations.update(now_seconds)
 
 			self.screen.fill((7, 12, 9))
-			self.entities.update()
+			self.entities.update(now_seconds)
 
 			self.loaded_map.draw()
 			self.entities.draw(self.screen, self.loaded_map)
