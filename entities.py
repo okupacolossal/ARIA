@@ -27,6 +27,7 @@ class Entities:
         return {
             "hospital": self._load_sprite("images/hospital.png", (22, 22)),
             "person": self._load_sprite("images/person.png", (16, 16)),
+            "ambulance": self._load_sprite("images/ambulance.png", (16, 16)),
         }
  
     def _draw_sprite_at_geo(self, screen, sprite: pygame.Surface, longitude: float, latitude: float, map):
@@ -59,6 +60,16 @@ class Entities:
                 person.latitude,
                 map,
             )
+
+        for hospital in self.entities["hospitals"]:
+            for ambulance in hospital.ambulances.values():
+                self._draw_sprite_at_geo(
+                    screen,
+                    self.sprites["ambulance"],
+                    ambulance.long,
+                    ambulance.lat,
+                    map,
+                )
     
     def update(self, now_seconds: float):
         for hospital in self.entities["hospitals"]:
@@ -76,8 +87,10 @@ class Hospital:
         self.pursuit = False
         self.scan_interval_seconds = 1.0
         self.last_scan_seconds = -self.scan_interval_seconds
-
         self.closest_cell = self.pathfinding.get_closest_cell(self.longitude, self.latitude)
+
+        self.ambulances = {}
+        self.ambulance_limit = 2
     
     def analyze_surroundings(self, people): 
 
@@ -108,14 +121,15 @@ class Hospital:
             )
 
         path = self.pathfinding.run_astar(self.closest_cell, closest.closest_cell)
+
+        if len(self.ambulances) < self.ambulance_limit:
+            self.dispatch_ambulance(closest, path)
         
-        if path:
-            for i in range(len(path)-1):
-                u, v = path[i], path[i+1]
-                self.map.G.edges[u, v, 0]['color'] = (122, 30, 30)
-                self.map.G.edges[u, v, 0]['thickness'] = 3
 
-
+    def dispatch_ambulance(self, person, path):
+        ambulance = Ambulance(self, person, path)
+        self.ambulances[id(ambulance)] = ambulance
+        person.rescuer = ambulance
              
         
 
@@ -173,3 +187,20 @@ class Person:
 
     def is_alive(self, now_seconds: float) -> bool:
         return (now_seconds - self.spawn_time) < self.timer_seconds
+    
+
+class Ambulance():
+
+    def __init__(self, station, target, path):
+        self.speed = 40
+        self.parent = station
+        self.target = target
+        self.path = path
+        self.lat = station.latitude
+        self.long = station.longitude
+    
+    def update(self):
+        pass
+    
+    def draw(self):
+        pass
