@@ -10,7 +10,7 @@ class Entities:
         self.pathfinding = pf
 
         self.hospitals = []
-        self.hospitals.append(Hospital("Hospital Santa Maria", 41.1600076, -8.6095796, pf))
+        self.hospitals.append(Hospital("Hospital Santa Maria", -8.6095796, 41.1600076, pf))
 
         self.people = []
 
@@ -29,8 +29,8 @@ class Entities:
             "person": self._load_sprite("images/person.png", (16, 16)),
         }
  
-    def _draw_sprite_at_geo(self, screen, sprite: pygame.Surface, latitude: float, longitude: float, map):
-        x, y = hlp.transform_coordinates(
+    def _draw_sprite_at_geo(self, screen, sprite: pygame.Surface, longitude: float, latitude: float, map):
+        screen_x, screen_y = hlp.transform_coordinates(
             latitude,
             longitude,
             map.min_latitude,
@@ -38,7 +38,7 @@ class Entities:
             map.min_longitude,
             map.max_longitude,
         )
-        rect = sprite.get_rect(center=(x, y))
+        rect = sprite.get_rect(center=(screen_x, screen_y))
         screen.blit(sprite, rect)
 
     def draw(self, screen, map):
@@ -46,8 +46,8 @@ class Entities:
             self._draw_sprite_at_geo(
                 screen,
                 self.sprites["hospital"],
-                hospital.x,
-                hospital.y,
+                hospital.longitude,
+                hospital.latitude,
                 map,
             )
 
@@ -55,8 +55,8 @@ class Entities:
             self._draw_sprite_at_geo(
                 screen,
                 self.sprites["person"],
-                person.x,
-                person.y,
+                person.longitude,
+                person.latitude,
                 map,
             )
     
@@ -64,16 +64,16 @@ class Entities:
         for hospital in self.entities["hospitals"]:
             hospital.update(self.people)
 class Hospital:
-    def __init__(self, name, long, lat, pf):
+    def __init__(self, name, longitude, latitude, pf):
         self.name = name
-        self.long = long
-        self.lat = lat
+        self.longitude = longitude
+        self.latitude = latitude
         self.pathfinding = pf
         self.map = pf.map
         
         self.pursuit = False
 
-        self.closest_cell = self.pathfinding.get_closest_cell(self.x, self.y)
+        self.closest_cell = self.pathfinding.get_closest_cell(self.longitude, self.latitude)
     
     def analyze_surroundings(self, people): 
 
@@ -84,7 +84,12 @@ class Hospital:
                 continue  # Skip if the person is already being rescued
 
             
-            distance = hlp.get_distance(self.y, self.x, person.y, person.x)
+            distance = hlp.get_distance(
+                self.latitude,
+                self.longitude,
+                person.latitude,
+                person.longitude,
+            )
 
             heapq.heappush(list_of_people, (distance, person))
 
@@ -107,16 +112,16 @@ class Hospital:
 
 
 class Person:
-    def __init__(self, name, x, y, timer_seconds: float = 30.0, spawn_time: float = 0.0, pf=None):
+    def __init__(self, name, longitude, latitude, timer_seconds: float = 30.0, spawn_time: float = 0.0, pf=None):
         self.name = name
-        self.x = x
-        self.y = y
+        self.longitude = longitude
+        self.latitude = latitude
         self.timer_seconds = timer_seconds
         self.spawn_time = spawn_time
         self.rescuer = None
         self.pf = pf
 
-        self.closest_cell = pf.get_closest_cell(self.x, self.y) if pf else None
+        self.closest_cell = pf.get_closest_cell(self.longitude, self.latitude) if pf else None
 
     @classmethod
     def create_random(
@@ -137,7 +142,14 @@ class Person:
         random_latitude = random.uniform(map.min_latitude + lat_margin, map.max_latitude - lat_margin)
         random_longitude = random.uniform(map.min_longitude + lon_margin, map.max_longitude - lon_margin)
 
-        return cls(name, random_latitude, random_longitude, timer_seconds=timer_seconds, spawn_time=spawn_time, pf=pf)
+        return cls(
+            name,
+            random_longitude,
+            random_latitude,
+            timer_seconds=timer_seconds,
+            spawn_time=spawn_time,
+            pf=pf,
+        )
 
     def is_alive(self, now_seconds: float) -> bool:
         return (now_seconds - self.spawn_time) < self.timer_seconds

@@ -35,12 +35,12 @@ class Map():
         self.max_longitude = max(self.longitudes)
 
         for node, data in self.G.nodes(data=True):
-            x, y = hlp.transform_coordinates(
+            screen_x, screen_y = hlp.transform_coordinates(
                 data['y'], data['x'], 
                 self.min_latitude, self.max_latitude, 
                 self.min_longitude, self.max_longitude
             )
-            screen_nodes[node] = (x, y)
+            screen_nodes[node] = (screen_x, screen_y)
 
         return screen_nodes
 
