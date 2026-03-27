@@ -60,9 +60,11 @@ class Entities:
                 map,
             )
     
-    def update(self):
+    def update(self, now_seconds: float):
         for hospital in self.entities["hospitals"]:
-            hospital.update(self.people)
+            hospital.update(self.people, now_seconds)
+
+
 class Hospital:
     def __init__(self, name, longitude, latitude, pf):
         self.name = name
@@ -72,6 +74,8 @@ class Hospital:
         self.map = pf.map
         
         self.pursuit = False
+        self.scan_interval_seconds = 1.0
+        self.last_scan_seconds = -self.scan_interval_seconds
 
         self.closest_cell = self.pathfinding.get_closest_cell(self.longitude, self.latitude)
     
@@ -94,19 +98,35 @@ class Hospital:
             heapq.heappush(list_of_people, (distance, person))
 
         closest = heapq.heappop(list_of_people)[1] if list_of_people else None
+        if closest is None:
+            return
 
-        print('Found path!')
+        if closest.closest_cell is None:
+            closest.closest_cell = self.pathfinding.get_closest_cell(
+                closest.longitude,
+                closest.latitude,
+            )
 
-        self.map.path = self.pathfinding.run_astar(self.closest_cell, closest.closest_cell)
-        print("Path set:", self.map.path)
-
-        self.pursuit = True
+        path = self.pathfinding.run_astar(self.closest_cell, closest.closest_cell)
+        
+        if path:
+            for i in range(len(path)-1):
+                u, v = path[i], path[i+1]
+                self.map.G.edges[u, v, 0]['color'] = (122, 30, 30)
+                self.map.G.edges[u, v, 0]['thickness'] = 3
 
 
              
         
 
-    def update(self, people):
+    def update(self, people, now_seconds: float):
+        if self.pursuit:
+            return
+
+        if (now_seconds - self.last_scan_seconds) < self.scan_interval_seconds:
+            return
+
+        self.last_scan_seconds = now_seconds
         self.analyze_surroundings(people)
     
 
@@ -121,7 +141,7 @@ class Person:
         self.rescuer = None
         self.pf = pf
 
-        self.closest_cell = pf.get_closest_cell(self.longitude, self.latitude) if pf else None
+        self.closest_cell = None
 
     @classmethod
     def create_random(

@@ -12,16 +12,16 @@ class Pathfinding:
         path = [current]
         
         while current in came_from:
+
             current = came_from[current]
             path.append(current)
         
         path = path[::-1]  # Reverse the path
+        path.remove(None)  # Remove the None entry if it exists
 
         return path
     
     def run_astar(self, start, goal):
-
-        print('Running A* algorithm from', start, 'to', goal) 
 
         def heuristic(node1, node2):
             x1, y1 = self.map.nodes[node1]
@@ -69,7 +69,7 @@ class Pathfinding:
                     g_score[neighbor] = tentative_g
                     came_from[neighbor] = current
 
-        return came_from
+        return self.reconstruct_path(came_from, current)  # Return the best effort path to the closest node reached
     
     def get_closest_cell(self, longitude, latitude): 
         try:
