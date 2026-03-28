@@ -198,9 +198,39 @@ class Ambulance():
         self.path = path
         self.lat = station.latitude
         self.long = station.longitude
-    
+
+        self.trajectory = self.get_complete_path()
+
+            
+
     def update(self):
-        pass
+        
+        while self.trajectory:
+            pass
+
     
+    def get_complete_path(self):
+
+        complete_path = []
+        for i, node in enumerate(self.path):
+            current_node = node
+            if i < len(self.path) - 1:
+
+                next_node = self.path[i + 1]
+                edge_data = self.parent.map.G.get_edge_data(current_node, next_node)
+                
+                geom = edge_data[0].get("geometry")
+                
+                if geom:
+                    for point in geom.coords:
+                        complete_path.append((point[1], point[0]))
+                else:
+                    current = self.parent.map.G.nodes[current_node]
+                    next = self.parent.map.G.nodes[next_node]
+                    
+                    complete_path.append((current["y"], current["x"]))
+                    complete_path.append((next["y"], next["x"]))
+        self.complete_path = complete_path
+
     def draw(self):
         pass
