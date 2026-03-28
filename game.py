@@ -33,6 +33,7 @@ class Game:
 			self.clock,
 			lambda: Map(self.screen),
 		)
+		self.game_speed = 1
 		self.running = True
 
 		self.pathfinding = Pathfinding(self.loaded_map)
