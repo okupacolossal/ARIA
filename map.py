@@ -71,10 +71,12 @@ class Map:
 
     def _random_freguesia_color(self, name):
         seeded = random.Random(f"freguesia-border-{name}")
-        base_green = seeded.randint(92, 142)
-        red = max(58, min(138, base_green - seeded.randint(14, 26)))
-        blue = max(64, min(142, base_green - seeded.randint(8, 20)))
-        return (red, base_green, blue)
+        # Light, low-saturation tones keep boundaries readable and night-tint friendly.
+        base = seeded.randint(158, 206)
+        red = max(138, min(228, base + seeded.randint(-20, 12)))
+        green = max(146, min(226, base + seeded.randint(-16, 14)))
+        blue = max(142, min(230, base + seeded.randint(-18, 18)))
+        return (red, green, blue)
 
     def _build_freguesia_render_data(self):
         self.freguesia_screen_boundaries = []
@@ -129,10 +131,13 @@ class Map:
         for _, _, data in self.G.edges(data=True):
             edge_length = float(data.get("length", 40.0))
             intensity = max(0.0, min(1.0, edge_length / 220.0))
-            base_green = 64 + int(20 * intensity)
-            data["glow_color"] = (18, base_green - 14, 18)
-            data["base_color"] = (24, base_green, 24)
-            data["core_color"] = (32, base_green + 10, 32)
+            # Neutral greys are easier to tint globally for day/night color grading.
+            base_gray = 80 + int(24 * intensity)
+            glow_gray = max(28, base_gray - 42)
+            core_gray = min(170, base_gray + 26)
+            data["glow_color"] = (glow_gray, glow_gray, glow_gray)
+            data["base_color"] = (base_gray, base_gray, base_gray)
+            data["core_color"] = (core_gray, core_gray, core_gray)
             data["thickness_glow"] = 3 if intensity > 0.7 else 2
             data["thickness_base"] = 1
             data["thickness_core"] = 1
