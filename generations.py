@@ -1,5 +1,5 @@
 DEFAULT_GENERATION_DURATION_SECONDS = 86400.0
-DEFAULT_PERSON_TIMER_SECONDS = 30.0
+DEFAULT_PERSON_TIMER_SECONDS = 30
 
 
 class Generations:
@@ -27,8 +27,11 @@ class Generations:
         self.ambulances_dispatched = 0
 
     def _create_generation_people(self, now_seconds: float):
-        # Intentionally left empty: plug your custom spawn logic here.
-        return
+        epochs = 864000 / 24
+
+        epochs_demand = {}
+
+        pass
 
     def start_new_generation(self, now_seconds: float):
         # Advance generation index and let custom spawn hook run.
