@@ -24,10 +24,18 @@ class Entities:
         return pygame.transform.smoothscale(sprite, size)
 
     def _load_sprites(self) -> dict[str, pygame.Surface]:
+        ambulance_base = self._load_sprite("images/ambulance.png", (16, 16))
+        ambulance_lights = ambulance_base.copy()
+        ambulance_lights.fill((255, 80, 80, 235), special_flags=pygame.BLEND_RGBA_MULT)
+        ambulance_mask = pygame.mask.from_surface(ambulance_base)
+        ambulance_outline = ambulance_mask.to_surface(setcolor=(245, 246, 230, 190), unsetcolor=(0, 0, 0, 0))
+        hospital_base = self._load_sprite("images/hospital.png", (34, 34))
         return {
-            "hospital": self._load_sprite("images/hospital.png", (22, 22)),
+            "hospital": hospital_base,
             "person": self._load_sprite("images/person.png", (16, 16)),
-            "ambulance": self._load_sprite("images/ambulance.png", (16, 16)),
+            "ambulance": ambulance_base,
+            "ambulance_lights": ambulance_lights,
+            "ambulance_outline": ambulance_outline,
         }
  
     def _draw_sprite_at_geo(self, screen, sprite: pygame.Surface, longitude: float, latitude: float, map):
@@ -42,15 +50,97 @@ class Entities:
         rect = sprite.get_rect(center=(screen_x, screen_y))
         screen.blit(sprite, rect)
 
-    def draw(self, screen, map):
-        for hospital in self.entities["hospitals"]:
-            self._draw_sprite_at_geo(
-                screen,
-                self.sprites["hospital"],
-                hospital.longitude,
-                hospital.latitude,
-                map,
+    def _geo_to_screen(self, longitude: float, latitude: float, map):
+        return hlp.transform_coordinates(
+            latitude,
+            longitude,
+            map.min_latitude,
+            map.max_latitude,
+            map.min_longitude,
+            map.max_longitude,
+        )
+
+    def _draw_ambulance(self, screen, ambulance, map, now_seconds: float):
+        x, y = self._geo_to_screen(ambulance.long, ambulance.lat, map)
+        rotation = -ambulance.direction
+
+        outline = pygame.transform.rotozoom(self.sprites["ambulance_outline"], rotation, 1.18)
+        outline_rect = outline.get_rect(center=(x, y))
+        screen.blit(outline, outline_rect)
+
+        base = pygame.transform.rotozoom(self.sprites["ambulance"], rotation, 1.0)
+        base_rect = base.get_rect(center=(x, y))
+        screen.blit(base, base_rect)
+
+        pulse = 0.5 + 0.5 * (1.0 + pygame.math.Vector2(1, 0).rotate(now_seconds * 360.0).x)
+        light_alpha = int(80 + 170 * pulse)
+        lights = pygame.transform.rotozoom(self.sprites["ambulance_lights"], rotation, 1.0)
+        lights.set_alpha(light_alpha)
+        lights_rect = lights.get_rect(center=(x, y))
+        screen.blit(lights, lights_rect)
+
+        beacon_radius = int(6 + 6 * pulse)
+        beacon_surface = pygame.Surface((beacon_radius * 2 + 4, beacon_radius * 2 + 4), pygame.SRCALPHA)
+        pygame.draw.circle(
+            beacon_surface,
+            (255, 70, 60, int(70 + 90 * pulse)),
+            (beacon_radius + 2, beacon_radius + 2),
+            beacon_radius,
+            0,
+        )
+        pygame.draw.circle(
+            beacon_surface,
+            (255, 210, 160, int(120 + 90 * pulse)),
+            (beacon_radius + 2, beacon_radius + 2),
+            max(2, beacon_radius // 3),
+            0,
+        )
+        screen.blit(beacon_surface, (x - beacon_radius - 2, y - beacon_radius - 2))
+
+        dispatch_age = now_seconds - ambulance.dispatch_started_at
+        if 0.0 <= dispatch_age <= 1.2:
+            ripple_progress = dispatch_age / 1.2
+            radius = int(8 + 34 * ripple_progress)
+            alpha = int(120 * (1.0 - ripple_progress))
+            ripple_surface = pygame.Surface((radius * 2 + 4, radius * 2 + 4), pygame.SRCALPHA)
+            pygame.draw.circle(
+                ripple_surface,
+                (255, 212, 120, alpha),
+                (radius + 2, radius + 2),
+                radius,
+                2,
             )
+            screen.blit(ripple_surface, (x - radius - 2, y - radius - 2))
+
+    def _draw_hospital(self, screen, hospital, map, now_seconds: float):
+        x, y = self._geo_to_screen(hospital.longitude, hospital.latitude, map)
+        pulse = 0.5 + 0.5 * (1.0 + pygame.math.Vector2(1, 0).rotate(now_seconds * 140.0).x)
+
+        glow_radius = int(20 + 8 * pulse)
+        glow_surface = pygame.Surface((glow_radius * 2 + 4, glow_radius * 2 + 4), pygame.SRCALPHA)
+        pygame.draw.circle(
+            glow_surface,
+            (210, 255, 220, int(80 + 80 * pulse)),
+            (glow_radius + 2, glow_radius + 2),
+            glow_radius,
+            0,
+        )
+        pygame.draw.circle(
+            glow_surface,
+            (60, 170, 90, int(70 + 70 * pulse)),
+            (glow_radius + 2, glow_radius + 2),
+            max(6, glow_radius // 2),
+            0,
+        )
+        screen.blit(glow_surface, (x - glow_radius - 2, y - glow_radius - 2))
+
+        station = self.sprites["hospital"]
+        station_rect = station.get_rect(center=(x, y))
+        screen.blit(station, station_rect)
+
+    def draw(self, screen, map, now_seconds: float = 0.0):
+        for hospital in self.entities["hospitals"]:
+            self._draw_hospital(screen, hospital, map, now_seconds)
 
         for person in self.entities["people"]:
             self._draw_sprite_at_geo(
@@ -63,19 +153,13 @@ class Entities:
 
         for hospital in self.entities["hospitals"]:
             for ambulance in list(hospital.ambulances.values()):
-                self._draw_sprite_at_geo(
-                    screen,
-                    self.sprites["ambulance"],
-                    ambulance.long,
-                    ambulance.lat,
-                    map,
-                )
+                self._draw_ambulance(screen, ambulance, map, now_seconds)
     
-    def update(self, now_seconds: float):
+    def update(self, now_seconds: float, dt_seconds: float):
         for hospital in self.entities["hospitals"]:
             hospital.update(self.people, now_seconds)
             for ambulance in list(hospital.ambulances.values()):
-                ambulance.update()
+                ambulance.update(dt_seconds)
 
     def remove_person(self, person):
         if person in self.people:
@@ -197,16 +281,17 @@ class Person:
 class Ambulance():
 
     def __init__(self, station, target, path):
-        self.speed = 1
+        self.speed_km_per_second = 0.25
         self.parent = station
         self.target = target
         self.path = path
         self.lat = station.latitude
         self.long = station.longitude
+        self.dispatch_started_at = pygame.time.get_ticks() / 1000.0
 
         self.trajectory = self.get_complete_path()
-        self.last_distance_to_target = float('inf')
         self.loaded = False
+        self.arrival_threshold_km = 0.006
 
         if self.trajectory:
              self.update_direction()
@@ -217,7 +302,7 @@ class Ambulance():
             self.long_vector = 0
             
 
-    def update(self):
+    def update(self, dt_seconds: float):
         if not self.trajectory or not self.trajectory_target:
 
             if not self.loaded:
@@ -226,18 +311,32 @@ class Ambulance():
                 del self.parent.ambulances[id(self)]
 
             return
-        
-        isClose = self.check_closeness(self.trajectory_target)
 
-        if isClose:
-            self.update_direction()
-        
         if self.trajectory and self.trajectory_target:
-            self.move_towards_target()
+            self.move_towards_target(dt_seconds)
 
-    def move_towards_target(self):
-            self.lat += self.lat_vector * self.speed * 0.0001
-            self.long += self.long_vector * self.speed * 0.0001
+    def move_towards_target(self, dt_seconds: float):
+            target_lat = self.trajectory_target[0]
+            target_long = self.trajectory_target[1]
+            distance_to_target = hlp.get_distance(self.lat, self.long, target_lat, target_long)
+
+            if distance_to_target <= self.arrival_threshold_km:
+                self.lat = target_lat
+                self.long = target_long
+                self.update_direction()
+                return
+
+            max_step_km = self.speed_km_per_second * max(0.001, dt_seconds)
+            if max_step_km >= distance_to_target:
+                self.lat = target_lat
+                self.long = target_long
+                self.update_direction()
+                return
+
+            ratio = max_step_km / distance_to_target
+            self.lat += (target_lat - self.lat) * ratio
+            self.long += (target_long - self.long) * ratio
+            self.direction = hlp.get_direction(self.lat, self.long, target_lat, target_long)
 
     def update_direction(self):
         if self.trajectory:
@@ -250,14 +349,6 @@ class Ambulance():
         self.direction = hlp.get_direction(self.lat, self.long, self.trajectory_target[0], self.trajectory_target[1])
         self.lat_vector = hlp.get_normalized_lonlan(self.direction)[1]
         self.long_vector = hlp.get_normalized_lonlan(self.direction)[0]
-        self.last_distance_to_target = float('inf')
-            
-    def check_closeness(self, target):
-        distance_to_target = hlp.get_distance(self.lat, self.long, target[0], target[1])
-        # Mark as close if within threshold OR if moving away from target (overshooting)
-        is_close = distance_to_target < 0.01 or distance_to_target > self.last_distance_to_target
-        self.last_distance_to_target = distance_to_target
-        return is_close
     
     def get_complete_path(self):
 
@@ -279,7 +370,12 @@ class Ambulance():
                     next = self.parent.map.G.nodes[next_node]      
                     complete_path.append((current["y"], current["x"]))
                     complete_path.append((next["y"], next["x"]))
-        return complete_path
+        cleaned_path = []
+        for waypoint in complete_path:
+            if cleaned_path and hlp.get_distance(cleaned_path[-1][0], cleaned_path[-1][1], waypoint[0], waypoint[1]) < 0.0004:
+                continue
+            cleaned_path.append(waypoint)
+        return cleaned_path
 
     def transport_target(self):
         self.loaded = True

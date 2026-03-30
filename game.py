@@ -1,4 +1,5 @@
 import sys
+import math
 
 import pygame
 
@@ -105,17 +106,52 @@ class Game:
 			pygame.draw.line(overlay, (8, 28, 14, 48), (0, y), (SCREEN_WIDTH, y), 1)
 		self.screen.blit(overlay, (0, 0))
 
+	def _draw_retro_background(self, now_seconds: float) -> None:
+		top = (18, 21, 22)
+		bottom = (8, 10, 12)
+		for y in range(SCREEN_HEIGHT):
+			t = y / max(1, SCREEN_HEIGHT - 1)
+			color = (
+				int(top[0] + (bottom[0] - top[0]) * t),
+				int(top[1] + (bottom[1] - top[1]) * t),
+				int(top[2] + (bottom[2] - top[2]) * t),
+			)
+			pygame.draw.line(self.screen, color, (0, y), (SCREEN_WIDTH, y))
+
+		center_x = SCREEN_WIDTH // 2
+		horizon = int(SCREEN_HEIGHT * 0.2)
+		for i in range(-24, 25):
+			offset = i * 52 + int(math.sin(now_seconds * 0.8 + i * 0.28) * 9)
+			pygame.draw.line(
+				self.screen,
+				(24, 34, 30),
+				(center_x + offset, SCREEN_HEIGHT),
+				(center_x + int(offset * 0.1), horizon),
+				1,
+			)
+
+		for row in range(8):
+			y = int(horizon + (row ** 1.65) * 14)
+			if y < SCREEN_HEIGHT:
+				alpha = max(12, 52 - row * 5)
+				pygame.draw.line(self.screen, (30, 40, 36, alpha), (0, y), (SCREEN_WIDTH, y), 1)
+
+		vignette = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
+		pygame.draw.rect(vignette, (0, 0, 0, 60), vignette.get_rect(), width=45, border_radius=28)
+		self.screen.blit(vignette, (0, 0))
+
 	def run(self) -> None:
 		while self.running:
 			self._handle_events()
 			now_seconds = pygame.time.get_ticks() / 1000.0
+			dt_seconds = max(1.0 / 120.0, self.clock.get_time() / 1000.0)
 			self.generations.update(now_seconds)
 
-			self.screen.fill((7, 12, 9))
-			self.entities.update(now_seconds)
+			self._draw_retro_background(now_seconds)
+			self.entities.update(now_seconds, dt_seconds)
 
 			self.loaded_map.draw()
-			self.entities.draw(self.screen, self.loaded_map)
+			self.entities.draw(self.screen, self.loaded_map, now_seconds)
 			self._draw_retro_overlay()
 			self._draw_generations_hud(now_seconds)
 			pygame.display.flip()
