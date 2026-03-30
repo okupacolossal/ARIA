@@ -10,7 +10,7 @@ class Entities:
         self.pathfinding = pf
 
         self.hospitals = []
-        self.hospitals.append(Hospital("Hospital Santa Maria", -8.6095796, 41.1600076, pf))
+        self.hospitals.append(Hospital("Hospital Santa Maria", -8.6095796, 41.1600076, pf, self))
 
         self.people = []
 
@@ -62,7 +62,7 @@ class Entities:
             )
 
         for hospital in self.entities["hospitals"]:
-            for ambulance in hospital.ambulances.values():
+            for ambulance in list(hospital.ambulances.values()):
                 self._draw_sprite_at_geo(
                     screen,
                     self.sprites["ambulance"],
@@ -74,15 +74,20 @@ class Entities:
     def update(self, now_seconds: float):
         for hospital in self.entities["hospitals"]:
             hospital.update(self.people, now_seconds)
+            for ambulance in list(hospital.ambulances.values()):
+                ambulance.update()
 
-
+    def remove_person(self, person):
+        if person in self.people:
+            self.people.remove(person)
 class Hospital:
-    def __init__(self, name, longitude, latitude, pf):
+    def __init__(self, name, longitude, latitude, pf, entities):
         self.name = name
         self.longitude = longitude
         self.latitude = latitude
         self.pathfinding = pf
         self.map = pf.map
+        self.parent = entities
         
         self.pursuit = False
         self.scan_interval_seconds = 1.0
@@ -192,7 +197,7 @@ class Person:
 class Ambulance():
 
     def __init__(self, station, target, path):
-        self.speed = 40
+        self.speed = 1
         self.parent = station
         self.target = target
         self.path = path
@@ -200,14 +205,59 @@ class Ambulance():
         self.long = station.longitude
 
         self.trajectory = self.get_complete_path()
+        self.last_distance_to_target = float('inf')
+        self.loaded = False
 
+        if self.trajectory:
+             self.update_direction()
+        else:
+            self.trajectory_target = None
+            self.direction = 0
+            self.lat_vector = 0
+            self.long_vector = 0
             
 
     def update(self):
-        
-        while self.trajectory:
-            pass
+        if not self.trajectory or not self.trajectory_target:
 
+            if not self.loaded:
+                self.transport_target()
+            elif self.loaded and hlp.get_distance(self.lat, self.long, self.parent.latitude, self.parent.longitude) < 0.1:
+                del self.parent.ambulances[id(self)]
+
+            return
+        
+        isClose = self.check_closeness(self.trajectory_target)
+
+        if isClose:
+            self.update_direction()
+        
+        if self.trajectory and self.trajectory_target:
+            self.move_towards_target()
+
+    def move_towards_target(self):
+            self.lat += self.lat_vector * self.speed * 0.0001
+            self.long += self.long_vector * self.speed * 0.0001
+
+    def update_direction(self):
+        if self.trajectory:
+            self.trajectory.pop(0)
+
+        if not self.trajectory:
+            self.trajectory_target = None
+            return
+        self.trajectory_target = self.trajectory[0]
+        self.direction = hlp.get_direction(self.lat, self.long, self.trajectory_target[0], self.trajectory_target[1])
+        self.lat_vector = hlp.get_normalized_lonlan(self.direction)[1]
+        self.long_vector = hlp.get_normalized_lonlan(self.direction)[0]
+        self.last_distance_to_target = float('inf')
+            
+    def check_closeness(self, target):
+        distance_to_target = hlp.get_distance(self.lat, self.long, target[0], target[1])
+        # Mark as close if within threshold OR if moving away from target (overshooting)
+        is_close = distance_to_target < 0.01 or distance_to_target > self.last_distance_to_target
+        self.last_distance_to_target = distance_to_target
+        return is_close
     
     def get_complete_path(self):
 
@@ -226,11 +276,17 @@ class Ambulance():
                         complete_path.append((point[1], point[0]))
                 else:
                     current = self.parent.map.G.nodes[current_node]
-                    next = self.parent.map.G.nodes[next_node]
-                    
+                    next = self.parent.map.G.nodes[next_node]      
                     complete_path.append((current["y"], current["x"]))
                     complete_path.append((next["y"], next["x"]))
-        self.complete_path = complete_path
+        return complete_path
 
-    def draw(self):
-        pass
+    def transport_target(self):
+        self.loaded = True
+        self.parent.parent.remove_person(self.target)
+        self.path = self.parent.pathfinding.run_astar(self.target.closest_cell, self.parent.closest_cell)
+        self.target = self.parent
+        self.trajectory = self.get_complete_path()
+        self.update_direction()
+        
+    

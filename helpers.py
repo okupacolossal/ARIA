@@ -1,3 +1,7 @@
+import math
+
+from matplotlib.pylab import angle
+
 import settings
 
 class Helpers:
@@ -31,3 +35,20 @@ class Helpers:
         c = 2 * atan2(sqrt(a), sqrt(1 - a))
         distance = R * c
         return distance
+    
+    @staticmethod
+    def get_direction(lat1, lon1, lat2, lon2):
+        d_lon = lon2 - lon1
+        d_lat = lat2 - lat1
+        # Use 0 deg at +longitude (east), increasing counter-clockwise,
+        # to match get_normalized_lonlan(cos, sin) below.
+        angle = (math.degrees(math.atan2(d_lat, d_lon)) + 360) % 360
+        return angle
+    
+    @staticmethod
+    def get_normalized_lonlan(direction):
+        # Convert angle to a unit vector
+        radians = math.radians(direction)
+        lon = math.cos(radians)
+        lat = math.sin(radians)
+        return (lon, lat)
