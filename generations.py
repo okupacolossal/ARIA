@@ -1,62 +1,53 @@
-from entities import Person
-
-DEFAULT_GENERATION_DURATION_SECONDS = 30.0
+DEFAULT_GENERATION_DURATION_SECONDS = 86400.0
 DEFAULT_PERSON_TIMER_SECONDS = 30.0
-DEFAULT_PEOPLE_PER_GENERATION = 25
-DEFAULT_SPAWN_EDGE_MARGIN_RATIO = 0.05
 
 
 class Generations:
+    """Minimal generation/timer manager.
+
+    Spawning is intentionally disabled so you can implement your own system.
+    The only built-in runtime behavior is generation timing and optional cleanup
+    of expired people using Person.is_alive.
+    """
+
     def __init__(
         self,
         entities,
         map,
         generation_duration_seconds: float = DEFAULT_GENERATION_DURATION_SECONDS,
         person_timer_seconds: float = DEFAULT_PERSON_TIMER_SECONDS,
-        people_per_generation: int = DEFAULT_PEOPLE_PER_GENERATION,
-        spawn_edge_margin_ratio: float = DEFAULT_SPAWN_EDGE_MARGIN_RATIO,
     ):
         self.entities = entities
         self.map = map
         self.generation_duration_seconds = generation_duration_seconds
         self.person_timer_seconds = person_timer_seconds
-        self.people_per_generation = people_per_generation
-        self.spawn_edge_margin_ratio = spawn_edge_margin_ratio
 
         self.current_generation = 0
         self.generation_started_at = None
         self.ambulances_dispatched = 0
 
     def _create_generation_people(self, now_seconds: float):
-        self.entities.people.clear()
-
-        for i in range(self.people_per_generation):
-            person_name = f"Person {self.current_generation}-{i + 1}"
-            person = Person.create_random(
-                person_name,
-                self.map,
-                edge_margin_ratio=self.spawn_edge_margin_ratio,
-                timer_seconds=self.person_timer_seconds,
-                spawn_time=now_seconds,
-                pf=self.entities.pathfinding
-
-            )
-            self.entities.people.append(person)
+        # Intentionally left empty: plug your custom spawn logic here.
+        return
 
     def start_new_generation(self, now_seconds: float):
+        # Advance generation index and let custom spawn hook run.
         self.current_generation += 1
         self.generation_started_at = now_seconds
         self._create_generation_people(now_seconds)
 
     def update(self, now_seconds: float):
+        # Bootstrap first generation on first frame.
         if self.generation_started_at is None:
             self.start_new_generation(now_seconds)
             return
 
+        # Rotate generation when the configured duration elapses.
         if (now_seconds - self.generation_started_at) >= self.generation_duration_seconds:
             self.start_new_generation(now_seconds)
             return
 
+        # Keep only people whose shelf-life has not expired.
         self.entities.people[:] = [person for person in self.entities.people if person.is_alive(now_seconds)]
 
     def get_time_in_generation(self, now_seconds: float) -> float:

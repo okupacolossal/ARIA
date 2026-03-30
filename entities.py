@@ -1,23 +1,20 @@
 import pygame
-import random
 from helpers import Helpers as hlp
 import heapq
 
+
 class Entities:
+    """Owns game entities and handles update/draw orchestration."""
+
     def __init__(self, map, pf):
         self.map = map
         self.sprites = self._load_sprites()
         self.pathfinding = pf
 
-        self.hospitals = []
-        self.hospitals.append(Hospital("Hospital Santa Maria", -8.6095796, 41.1600076, pf, self))
+        self.hospitals = [Hospital("Hospital Santa Maria", -8.6095796, 41.1600076, pf, self)]
 
+        # People are managed externally now (your custom spawner can append here).
         self.people = []
-
-        self.entities = {
-            "hospitals": self.hospitals,
-            "people": self.people,
-        }
 
     def _load_sprite(self, path: str, size: tuple[int, int]) -> pygame.Surface:
         sprite = pygame.image.load(path).convert_alpha()
@@ -139,10 +136,10 @@ class Entities:
         screen.blit(station, station_rect)
 
     def draw(self, screen, map, now_seconds: float = 0.0):
-        for hospital in self.entities["hospitals"]:
+        for hospital in self.hospitals:
             self._draw_hospital(screen, hospital, map, now_seconds)
 
-        for person in self.entities["people"]:
+        for person in self.people:
             self._draw_sprite_at_geo(
                 screen,
                 self.sprites["person"],
@@ -151,20 +148,22 @@ class Entities:
                 map,
             )
 
-        for hospital in self.entities["hospitals"]:
+        for hospital in self.hospitals:
             for ambulance in list(hospital.ambulances.values()):
                 self._draw_ambulance(screen, ambulance, map, now_seconds)
     
-    def update(self, now_seconds: float, dt_seconds: float):
-        for hospital in self.entities["hospitals"]:
+    def update(self, now_seconds: float, dt_seconds: float, speed_multiplier: float = 1.0):
+        for hospital in self.hospitals:
             hospital.update(self.people, now_seconds)
             for ambulance in list(hospital.ambulances.values()):
-                ambulance.update(dt_seconds)
+                ambulance.update(dt_seconds, speed_multiplier)
 
     def remove_person(self, person):
         if person in self.people:
             self.people.remove(person)
 class Hospital:
+    """Dispatch center that scans for unassigned people and sends ambulances."""
+
     def __init__(self, name, longitude, latitude, pf, entities):
         self.name = name
         self.longitude = longitude
@@ -235,6 +234,8 @@ class Hospital:
 
 
 class Person:
+    """Simple person model with an optional shelf-life timer."""
+
     def __init__(self, name, longitude, latitude, timer_seconds: float = 30.0, spawn_time: float = 0.0, pf=None):
         self.name = name
         self.longitude = longitude
@@ -243,45 +244,18 @@ class Person:
         self.spawn_time = spawn_time
         self.rescuer = None
         self.pf = pf
-
         self.closest_cell = None
 
-    @classmethod
-    def create_random(
-        cls,
-        name: str,
-        map,
-        edge_margin_ratio: float = 0.05,
-        timer_seconds: float = 30.0,
-        spawn_time: float = 0.0,
-        pf = None,
-    ):
-        latitude_range = map.max_latitude - map.min_latitude
-        longitude_range = map.max_longitude - map.min_longitude
-
-        lat_margin = latitude_range * edge_margin_ratio
-        lon_margin = longitude_range * edge_margin_ratio
-
-        random_latitude = random.uniform(map.min_latitude + lat_margin, map.max_latitude - lat_margin)
-        random_longitude = random.uniform(map.min_longitude + lon_margin, map.max_longitude - lon_margin)
-
-        return cls(
-            name,
-            random_longitude,
-            random_latitude,
-            timer_seconds=timer_seconds,
-            spawn_time=spawn_time,
-            pf=pf,
-        )
-
     def is_alive(self, now_seconds: float) -> bool:
+        # Person expires when elapsed simulation time reaches timer_seconds.
         return (now_seconds - self.spawn_time) < self.timer_seconds
     
 
 class Ambulance():
+    """Follows an A* route toward target and then returns to hospital."""
+
 
     def __init__(self, station, target, path):
-        self.speed_km_per_second = 0.25
         self.parent = station
         self.target = target
         self.path = path
@@ -298,11 +272,9 @@ class Ambulance():
         else:
             self.trajectory_target = None
             self.direction = 0
-            self.lat_vector = 0
-            self.long_vector = 0
             
 
-    def update(self, dt_seconds: float):
+    def update(self, dt_seconds: float, speed_multiplier: float = 1.0):
         if not self.trajectory or not self.trajectory_target:
 
             if not self.loaded:
@@ -313,11 +285,12 @@ class Ambulance():
             return
 
         if self.trajectory and self.trajectory_target:
-            self.move_towards_target(dt_seconds)
+            self.move_towards_target(dt_seconds, speed_multiplier)
 
-    def move_towards_target(self, dt_seconds: float):
+    def move_towards_target(self, dt_seconds: float, speed_multiplier: float):
             target_lat = self.trajectory_target[0]
             target_long = self.trajectory_target[1]
+            speed_limit_kph = self.trajectory_target[2]
             distance_to_target = hlp.get_distance(self.lat, self.long, target_lat, target_long)
 
             if distance_to_target <= self.arrival_threshold_km:
@@ -326,7 +299,8 @@ class Ambulance():
                 self.update_direction()
                 return
 
-            max_step_km = self.speed_km_per_second * max(0.001, dt_seconds)
+            speed_km_per_second = self._speed_from_limit(speed_limit_kph)
+            max_step_km = speed_km_per_second * max(0.001, dt_seconds) * max(0.0, speed_multiplier)
             if max_step_km >= distance_to_target:
                 self.lat = target_lat
                 self.long = target_long
@@ -339,18 +313,64 @@ class Ambulance():
             self.direction = hlp.get_direction(self.lat, self.long, target_lat, target_long)
 
     def update_direction(self):
+        # Consume current waypoint and point to the next one.
         if self.trajectory:
             self.trajectory.pop(0)
 
         if not self.trajectory:
             self.trajectory_target = None
             return
+        
         self.trajectory_target = self.trajectory[0]
         self.direction = hlp.get_direction(self.lat, self.long, self.trajectory_target[0], self.trajectory_target[1])
-        self.lat_vector = hlp.get_normalized_lonlan(self.direction)[1]
-        self.long_vector = hlp.get_normalized_lonlan(self.direction)[0]
+
+    def _extract_speed_limit_kph(self, edge_attrs) -> float:
+        # Parse OSM maxspeed values (supports strings, lists, and mph suffixes).
+        raw_speed = edge_attrs.get("maxspeed")
+        if raw_speed is None:
+            return 50.0
+
+        if isinstance(raw_speed, list):
+            candidates = raw_speed
+        else:
+            candidates = [raw_speed]
+
+        values = []
+        for candidate in candidates:
+            text = str(candidate).lower().strip()
+            if not text:
+                continue
+
+            number_chars = []
+            for ch in text:
+                if ch.isdigit() or ch == ".":
+                    number_chars.append(ch)
+                elif number_chars:
+                    break
+
+            if not number_chars:
+                continue
+
+            try:
+                value = float("".join(number_chars))
+            except ValueError:
+                continue
+
+            if "mph" in text:
+                value *= 1.60934
+
+            values.append(value)
+
+        if not values:
+            return 50.0
+
+        return max(10.0, min(130.0, values[0]))
+
+    def _speed_from_limit(self, speed_limit_kph: float) -> float:
+        return speed_limit_kph / 3600.0
     
     def get_complete_path(self):
+        # Build (lat, lon, speed_limit_kph) waypoints from graph edges.
 
         complete_path = []
         for i, node in enumerate(self.path):
@@ -359,17 +379,21 @@ class Ambulance():
 
                 next_node = self.path[i + 1]
                 edge_data = self.parent.map.G.get_edge_data(current_node, next_node)
-                
-                geom = edge_data[0].get("geometry")
+                if not edge_data:
+                    continue
+                edge_attrs = edge_data[0] if edge_data and 0 in edge_data else next(iter(edge_data.values()))
+                speed_limit_kph = self._extract_speed_limit_kph(edge_attrs)
+
+                geom = edge_attrs.get("geometry")
                 
                 if geom:
                     for point in geom.coords:
-                        complete_path.append((point[1], point[0]))
+                        complete_path.append((point[1], point[0], speed_limit_kph))
                 else:
                     current = self.parent.map.G.nodes[current_node]
                     next = self.parent.map.G.nodes[next_node]      
-                    complete_path.append((current["y"], current["x"]))
-                    complete_path.append((next["y"], next["x"]))
+                    complete_path.append((current["y"], current["x"], speed_limit_kph))
+                    complete_path.append((next["y"], next["x"], speed_limit_kph))
         cleaned_path = []
         for waypoint in complete_path:
             if cleaned_path and hlp.get_distance(cleaned_path[-1][0], cleaned_path[-1][1], waypoint[0], waypoint[1]) < 0.0004:
@@ -378,6 +402,7 @@ class Ambulance():
         return cleaned_path
 
     def transport_target(self):
+        # Once the person is reached, remove them and route back to station.
         self.loaded = True
         self.parent.parent.remove_person(self.target)
         self.path = self.parent.pathfinding.run_astar(self.target.closest_cell, self.parent.closest_cell)

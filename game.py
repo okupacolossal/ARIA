@@ -34,7 +34,10 @@ class Game:
 			self.clock,
 			lambda: Map(self.screen),
 		)
-		self.game_speed = 1
+		self.game_speed = 60.0
+		self.min_game_speed = 1.0
+		self.max_game_speed = 7200.0
+		self.simulation_now_seconds = 0.0
 		self.running = True
 
 		self.pathfinding = Pathfinding(self.loaded_map)
@@ -43,6 +46,10 @@ class Game:
 	def _handle_keydown(self, key: int) -> None:
 		if key == pygame.K_ESCAPE:
 			self.running = False
+		elif key in (pygame.K_UP, pygame.K_RIGHT):
+			self.game_speed = min(self.max_game_speed, self.game_speed * 2.0)
+		elif key in (pygame.K_DOWN, pygame.K_LEFT):
+			self.game_speed = max(self.min_game_speed, self.game_speed / 2.0)
 
 	def _handle_events(self) -> None:
 		for event in pygame.event.get():
@@ -83,7 +90,11 @@ class Game:
 		line_2 = self.ui_font.render(f"TIME LEFT:   {time_left:05.1f}s", True, HUD_ACCENT)
 		line_3 = self.ui_font.render(f"PEOPLE ON MAP: {people_count:03d}", True, HUD_TEXT)
 		line_4 = self.ui_font.render(f"AMBULANCES DISPATCHED: {ambulances_count:03d}", True, HUD_TEXT)
-		line_5 = self.ui_small_font.render("placeholder metric for dispatch system", True, HUD_TEXT_DIM)
+		line_5 = self.ui_small_font.render(
+			f"SIM SPEED: x{self.game_speed:.1f}  (UP/RIGHT faster, DOWN/LEFT slower)",
+			True,
+			HUD_TEXT_DIM,
+		)
 
 		self.screen.blit(line_1, (panel_x + 14, panel_y + 52))
 		self.screen.blit(line_2, (panel_x + 14, panel_y + 76))
@@ -143,17 +154,19 @@ class Game:
 	def run(self) -> None:
 		while self.running:
 			self._handle_events()
-			now_seconds = pygame.time.get_ticks() / 1000.0
+			real_now_seconds = pygame.time.get_ticks() / 1000.0
 			dt_seconds = max(1.0 / 120.0, self.clock.get_time() / 1000.0)
-			self.generations.update(now_seconds)
+			self.simulation_now_seconds += dt_seconds * self.game_speed
+			sim_now_seconds = self.simulation_now_seconds
+			self.generations.update(sim_now_seconds)
 
-			self._draw_retro_background(now_seconds)
-			self.entities.update(now_seconds, dt_seconds)
+			self._draw_retro_background(real_now_seconds)
+			self.entities.update(sim_now_seconds, dt_seconds, self.game_speed)
 
 			self.loaded_map.draw()
-			self.entities.draw(self.screen, self.loaded_map, now_seconds)
+			self.entities.draw(self.screen, self.loaded_map, real_now_seconds)
 			self._draw_retro_overlay()
-			self._draw_generations_hud(now_seconds)
+			self._draw_generations_hud(sim_now_seconds)
 			pygame.display.flip()
 			self.clock.tick(60)
 
