@@ -42,7 +42,7 @@ class Game:
 
 		self.pathfinding = Pathfinding(self.loaded_map)
 		self.entities = entities.Entities(self.loaded_map, self.pathfinding)
-		self.generations = Generations(self.entities, self.loaded_map)
+		self.generations = Generations(self.entities, self.loaded_map, self.game_speed)
 	def _handle_keydown(self, key: int) -> None:
 		if key == pygame.K_ESCAPE:
 			self.running = False
@@ -67,8 +67,6 @@ class Game:
 		panel_surface.fill(HUD_BG)
 		pygame.draw.rect(panel_surface, HUD_BORDER, panel_surface.get_rect(), 2, border_radius=6)
 
-		for y in range(0, panel_h, 4):
-			pygame.draw.line(panel_surface, (12, 28, 18, 120), (0, y), (panel_w, y), 1)
 
 		self.screen.blit(panel_surface, (panel_x, panel_y))
 
@@ -112,22 +110,10 @@ class Game:
 		pygame.draw.rect(self.screen, HUD_ACCENT, (bar_x + 2, bar_y + 2, fill_w, bar_h - 4), border_radius=2)
 
 	def _draw_retro_overlay(self) -> None:
-		overlay = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-		for y in range(0, SCREEN_HEIGHT, 3):
-			pygame.draw.line(overlay, (8, 28, 14, 48), (0, y), (SCREEN_WIDTH, y), 1)
-		self.screen.blit(overlay, (0, 0))
+		pass
 
 	def _draw_retro_background(self, now_seconds: float) -> None:
-		top = (18, 21, 22)
-		bottom = (8, 10, 12)
-		for y in range(SCREEN_HEIGHT):
-			t = y / max(1, SCREEN_HEIGHT - 1)
-			color = (
-				int(top[0] + (bottom[0] - top[0]) * t),
-				int(top[1] + (bottom[1] - top[1]) * t),
-				int(top[2] + (bottom[2] - top[2]) * t),
-			)
-			pygame.draw.line(self.screen, color, (0, y), (SCREEN_WIDTH, y))
+		self.screen.fill((16, 18, 20))
 
 		center_x = SCREEN_WIDTH // 2
 		horizon = int(SCREEN_HEIGHT * 0.2)

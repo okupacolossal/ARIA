@@ -1,3 +1,4 @@
+from networkx import nodes
 import osmnx as ox
 from settings import *
 import pygame
@@ -14,6 +15,7 @@ class Map:
         self.freguesia_font = pygame.font.SysFont("couriernew", 14, bold=True)
         self.nodes = self.get_map()
         self.path = []
+    
 
     def _load_or_create_graph(self):
         if os.path.exists("porto_map.graphml"):
@@ -25,14 +27,22 @@ class Map:
         return graph
 
     def _load_freguesias(self):
+        if os.path.exists("porto_freguesias.gpkg"):
+            return gpd.read_file("porto_freguesias.gpkg")
+    
         freguesias = ox.features_from_place(
-            "Porto, Portugal",
+            "Porto, Porto, Portugal",
             tags={"boundary": "administrative", "admin_level": "8"},
         )
         freguesias = freguesias[
             freguesias.geometry.geom_type.isin(["Polygon", "MultiPolygon"])
         ].copy()
-        return freguesias.to_crs(self.gdf.crs)
+        
+        freguesias = freguesias[freguesias["admin_level"] == "8"].copy()
+    
+        freguesias = freguesias.to_crs(self.gdf.crs)
+        freguesias.to_file("porto_freguesias.gpkg", driver="GPKG")
+        return freguesias
 
     def _attach_freguesia_to_nodes(self):
         joined = gpd.sjoin(
@@ -41,11 +51,13 @@ class Map:
             how="left",
             predicate="within",
         )
+        print(joined.columns.tolist())
         joined = joined[~joined.index.duplicated(keep="first")]
         self.gdf["freguesia"] = joined["name"]
 
         for node_id in self.G.nodes:
             self.G.nodes[node_id]["freguesia"] = self.gdf.loc[node_id, "freguesia"]
+        
 
     def _compute_geo_bounds(self):
         latitudes = []
@@ -131,46 +143,18 @@ class Map:
         for _, _, data in self.G.edges(data=True):
             edge_length = float(data.get("length", 40.0))
             intensity = max(0.0, min(1.0, edge_length / 220.0))
-            # Neutral greys are easier to tint globally for day/night color grading.
+            
             base_gray = 80 + int(24 * intensity)
-            glow_gray = max(28, base_gray - 42)
-            core_gray = min(170, base_gray + 26)
-            data["glow_color"] = (glow_gray, glow_gray, glow_gray)
-            data["base_color"] = (base_gray, base_gray, base_gray)
-            data["core_color"] = (core_gray, core_gray, core_gray)
-            data["thickness_glow"] = 3 if intensity > 0.7 else 2
-            data["thickness_base"] = 1
-            data["thickness_core"] = 1
+            data["line_color"] = (base_gray, base_gray, base_gray)
+            data["line_thickness"] = 1
 
-    def _glitch_coords(self, coords, now_seconds, seed, amplitude):
-        glitched = []
-        for idx, (x, y) in enumerate(coords):
-            dx = int(math.sin(now_seconds * 6.4 + seed + idx * 0.15) * amplitude)
-            dy = int(math.cos(now_seconds * 8.2 + seed * 0.65 + idx * 0.17) * amplitude)
-            glitched.append((x + dx, y + dy))
-        return glitched
-
-    def _draw_glitchy_freguesia_boundaries(self):
-        now_seconds = pygame.time.get_ticks() / 1000.0
+    def _draw_simple_freguesia_boundaries(self):
         for boundary in self.freguesia_screen_boundaries:
             coords = boundary["coords"]
             if len(coords) < 2:
                 continue
 
             base_color = boundary["color"]
-            seed = boundary["glitch_seed"]
-
-            dark = tuple(max(0, c - 24) for c in base_color)
-            bright = tuple(min(255, c + 14) for c in base_color)
-
-            flicker_phase = 0.86 + 0.14 * (1.0 + math.sin(now_seconds * 9.0 + seed)) * 0.5
-            flicker_color = tuple(min(255, int(c * flicker_phase)) for c in bright)
-
-            first_glitch = self._glitch_coords(coords, now_seconds, seed, 0.9)
-            second_glitch = self._glitch_coords(coords, now_seconds, seed + 2.13, 1.5)
-
-            pygame.draw.polygon(self.screen, dark, second_glitch, width=1)
-            pygame.draw.polygon(self.screen, flicker_color, first_glitch, width=1)
             pygame.draw.polygon(self.screen, base_color, coords, width=1)
 
     def _resolve_freguesia_label_overlaps(self, labels):
@@ -222,27 +206,55 @@ class Map:
             adjusted.append((name, selected_rect.centerx, selected_rect.centery))
 
         return adjusted
+    
+    def _build_freguesia_node_index(self):
+        self.freguesia_nodes = {}
+        for node, data in self.G.nodes(data=True):
+            f = data.get("freguesia")
+            if f:
+                self.freguesia_nodes.setdefault(f, []).append(node)
+
+    def get_random_available_point_in_freguesia(self, freguesia):
+        nodes = self.freguesia_nodes.get(freguesia, [])
+        if not nodes:
+            return None
+        node_id = random.choice(nodes)
+        node_data = self.G.nodes[node_id]
+        return node_data["x"], node_data["y"]
 
     def get_map(self):
         self.G = self._load_or_create_graph()
         self.gdf = ox.graph_to_gdfs(self.G, nodes=True, edges=False)
         self.freguesias = self._load_freguesias()
-        self._attach_freguesia_to_nodes()
+        print("Map and freguesias loaded, processing...")
+    
+
+        sample = next(iter(self.G.nodes(data=True)))[1]
+        if "freguesia" not in sample:
+            self._attach_freguesia_to_nodes()
+            ox.save_graphml(self.G, "porto_map.graphml")
+       
+
         self._compute_geo_bounds()
         self._build_freguesia_render_data()
+        self._build_freguesia_node_index()  # <- missing
         self._style_edges()
-        return self._build_screen_nodes()
+        
 
+        #print freguesia of each node
+
+        print("Freguesia distribution among nodes:")
+        print(set(data.get("freguesia") for _, data in self.G.nodes(data=True)))
+
+        return self._build_screen_nodes()
 
     def draw(self):
         for u, v, data in self.G.edges(data=True):
             x1, y1 = self.nodes[u]
             x2, y2 = self.nodes[v]
-            pygame.draw.line(self.screen, data['glow_color'], (x1, y1), (x2, y2), data['thickness_glow'])
-            pygame.draw.line(self.screen, data['base_color'], (x1, y1), (x2, y2), data['thickness_base'])
-            pygame.draw.line(self.screen, data['core_color'], (x1, y1), (x2, y2), data['thickness_core'])
+            pygame.draw.line(self.screen, data['line_color'], (x1, y1), (x2, y2), data['line_thickness'])
 
-        self._draw_glitchy_freguesia_boundaries()
+        self._draw_simple_freguesia_boundaries()
 
         for name, screen_x, screen_y in self.freguesia_screen_labels:
             label_surface = self.freguesia_font.render(name.upper(), True, (126, 176, 138))
