@@ -83,11 +83,11 @@ class Map:
 
     def _random_freguesia_color(self, name):
         seeded = random.Random(f"freguesia-border-{name}")
-        # Light, low-saturation tones keep boundaries readable and night-tint friendly.
-        base = seeded.randint(158, 206)
-        red = max(138, min(228, base + seeded.randint(-20, 12)))
-        green = max(146, min(226, base + seeded.randint(-16, 14)))
-        blue = max(142, min(230, base + seeded.randint(-18, 18)))
+        # Make edges very subtle and dark to be less apparent
+        base = seeded.randint(30, 50)
+        red = max(20, min(60, base + seeded.randint(-10, 10)))
+        green = max(20, min(60, base + seeded.randint(-10, 10)))
+        blue = max(20, min(60, base + seeded.randint(-10, 10)))
         return (red, green, blue)
 
     def _build_freguesia_render_data(self):

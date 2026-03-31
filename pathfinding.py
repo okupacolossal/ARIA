@@ -1,6 +1,7 @@
 from helpers import Helpers as hlp
 import heapq
 import osmnx as ox
+import networkx as nx
 
 class Pathfinding:
     def __init__(self, map):
@@ -28,48 +29,10 @@ class Pathfinding:
             x2, y2 = self.map.nodes[node2]
             return ((x1 - x2) ** 2 + (y1 - y2) ** 2) ** 0.5
 
-        # init lists
-        counter = 0
-
-        closed_set = set()
-        open_list = []
-        counter = 0
-        came_from = {start: None}
-        initial_heuristic = heuristic(start, goal)
-        g_score = {start: 0}
-        
-
-        # initial heap push
-        heapq.heappush(open_list, (g_score[start] + initial_heuristic, counter, start))  # (f_score, node)
-
-        while open_list:
-            f, _, current = heapq.heappop(open_list)  # Get the node with the lowest f_score
-
-            counter += 1
-
-            if current == goal:
-                return self.reconstruct_path(came_from, current)
-            
-            closed_set.add(current)
-
-            for _, neighbor, _, data in self.map.G.edges(current, keys=True, data=True):
-    
-                if neighbor in closed_set:
-                    continue
-
-                edge_length = data.get("length", 1)
-                tentative_g = g_score[current] + edge_length
-                heur = heuristic(neighbor, goal)
-                f_score = tentative_g + heur
-                counter += 1
-
-                heapq.heappush(open_list, (f_score, counter, neighbor))
-
-                if neighbor not in g_score or tentative_g < g_score[neighbor]:
-                    g_score[neighbor] = tentative_g
-                    came_from[neighbor] = current
-
-        return self.reconstruct_path(came_from, current)  # Return the best effort path to the closest node reached
+        try:
+            return nx.astar_path(self.map.G, start, goal, heuristic=heuristic, weight="length")
+        except nx.NetworkXNoPath:
+            return [start, goal]
     
     def get_closest_cell(self, longitude, latitude): 
         try:

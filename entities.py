@@ -10,12 +10,17 @@ from settings import GENERATION_DURATION, PERSON_SPAWNING_TIMER, PRIORITIES, FRE
 class Entities:
     """Owns game entities and handles update/draw orchestration."""
 
-    def __init__(self, map, pf):
+    def __init__(self, map, pf, game):
         self.map = map
         self.sprites = self._load_sprites()
         self.pathfinding = pf
+        self.game = game
 
         self.hospitals = [Hospital("Hospital Santa Maria", -8.6095796, 41.1600076, pf, self)]
+
+        # Background thread pool for pathfinding and other heavy lifting
+        import concurrent.futures
+        self.thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
 
         # People are managed externally now (your custom spawner can append here).
         self.people = []
@@ -73,15 +78,94 @@ class Entities:
         )
 
     def _draw_ambulance(self, screen, ambulance, map, now_seconds: float):
+        
+        # Animate and draw the path
+        if hasattr(ambulance, 'full_trajectory_cache') and len(ambulance.full_trajectory_cache) > 1:
+            if ambulance.drawn_path_index < len(ambulance.full_trajectory_cache):
+                # Animate 3 waypoints per frame to make it fast but visible
+                ambulance.drawn_path_index = min(len(ambulance.full_trajectory_cache), ambulance.drawn_path_index + 3)
+            
+            points = []
+            for i in range(ambulance.drawn_path_index):
+                lat, lon, _ = ambulance.full_trajectory_cache[i]
+                sx, sy = self._geo_to_screen(lon, lat, map)
+                points.append((sx, sy))
+                
+            if len(points) >= 2:
+                pygame.draw.lines(screen, ambulance.path_color, False, points, 3)
+
         x, y = self._geo_to_screen(ambulance.long, ambulance.lat, map)
         rotation = -ambulance.direction
+
+        outline = pygame.transform.rotozoom(self.sprites["ambulance_outline"], rotation, 1.18)
+        outline_rect = outline.get_rect(center=(x, y))
+        screen.blit(outline, outline_rect)
 
         base = pygame.transform.rotozoom(self.sprites["ambulance"], rotation, 1.0)
         base_rect = base.get_rect(center=(x, y))
         screen.blit(base, base_rect)
 
+        pulse = 0.5 + 0.5 * (1.0 + pygame.math.Vector2(1, 0).rotate(now_seconds * 360.0).x)
+        light_alpha = int(80 + 170 * pulse)
+        lights = pygame.transform.rotozoom(self.sprites["ambulance_lights"], rotation, 1.0)
+        lights.set_alpha(light_alpha)
+        lights_rect = lights.get_rect(center=(x, y))
+        screen.blit(lights, lights_rect)
+
+        beacon_radius = int(6 + 6 * pulse)
+        beacon_surface = pygame.Surface((beacon_radius * 2 + 4, beacon_radius * 2 + 4), pygame.SRCALPHA)
+        pygame.draw.circle(
+            beacon_surface,
+            (255, 70, 60, int(70 + 90 * pulse)),
+            (beacon_radius + 2, beacon_radius + 2),
+            beacon_radius,
+            0,
+        )
+        pygame.draw.circle(
+            beacon_surface,
+            (255, 210, 160, int(120 + 90 * pulse)),
+            (beacon_radius + 2, beacon_radius + 2),
+            max(2, beacon_radius // 3),
+            0,
+        )
+        screen.blit(beacon_surface, (x - beacon_radius - 2, y - beacon_radius - 2))
+
+        dispatch_age = now_seconds - ambulance.dispatch_started_at
+        if 0.0 <= dispatch_age <= 1.2:
+            ripple_progress = dispatch_age / 1.2
+            radius = int(8 + 34 * ripple_progress)
+            alpha = int(120 * (1.0 - ripple_progress))
+            ripple_surface = pygame.Surface((radius * 2 + 4, radius * 2 + 4), pygame.SRCALPHA)
+            pygame.draw.circle(
+                ripple_surface,
+                (255, 212, 120, alpha),
+                (radius + 2, radius + 2),
+                radius,
+                2,
+            )
+            screen.blit(ripple_surface, (x - radius - 2, y - radius - 2))
+
     def _draw_hospital(self, screen, hospital, map, now_seconds: float):
         x, y = self._geo_to_screen(hospital.longitude, hospital.latitude, map)
+        pulse = 0.5 + 0.5 * (1.0 + pygame.math.Vector2(1, 0).rotate(now_seconds * 140.0).x)
+
+        glow_radius = int(20 + 8 * pulse)
+        glow_surface = pygame.Surface((glow_radius * 2 + 4, glow_radius * 2 + 4), pygame.SRCALPHA)
+        pygame.draw.circle(
+            glow_surface,
+            (210, 255, 220, int(80 + 80 * pulse)),
+            (glow_radius + 2, glow_radius + 2),
+            glow_radius,
+            0,
+        )
+        pygame.draw.circle(
+            glow_surface,
+            (60, 170, 90, int(70 + 70 * pulse)),
+            (glow_radius + 2, glow_radius + 2),
+            max(6, glow_radius // 2),
+            0,
+        )
+        screen.blit(glow_surface, (x - glow_radius - 2, y - glow_radius - 2))
 
         station = self.sprites["hospital"]
         station_rect = station.get_rect(center=(x, y))
@@ -117,7 +201,7 @@ class Entities:
     def add_person(self, current_sim_time):
         values = list(PRIORITIES.keys())
         priority = random.choice(values)
-        time_to_live = random.randint(PRIORITIES[priority][0], PRIORITIES[priority][1]) * 60
+        time_to_live = random.randint(PRIORITIES[priority][0], PRIORITIES[priority][1]) * 60 
         freguesia = random.choices(
         list(FREGUESIA_WEIGHTS.keys()),
         weights=list(FREGUESIA_WEIGHTS.values()),
@@ -134,6 +218,7 @@ class Entities:
             longitude=longitude,
             latitude=latitude,
             time_to_live=time_to_live,
+            priority=priority,
             spawn_time=current_sim_time,
             pf=self.pathfinding,
             parent=self,
@@ -183,9 +268,9 @@ class Hospital:
                 person.longitude,
             )
 
-            heapq.heappush(list_of_people, (distance, person))
+            heapq.heappush(list_of_people, (person.priority, distance, person))
 
-        closest = heapq.heappop(list_of_people)[1] if list_of_people else None
+        closest = heapq.heappop(list_of_people)[2] if list_of_people else None
         if closest is None:
             return
 
@@ -195,10 +280,26 @@ class Hospital:
                 closest.latitude,
             )
 
-        path = self.pathfinding.run_astar(self.closest_cell, closest.closest_cell)
+        # Mark as pending dispatch to prevent other hospitals/ticks from grabbing them
+        closest.rescuer = True  
 
-        if self.parent.get_hospital_ambulance_count(self) < self.ambulance_limit:
-            self.dispatch_ambulance(closest, path)
+        def on_path_calculated(future):
+            try:
+                path = future.result()
+                # Check limit again just in case another ambulance spawned while calculating
+                if self.parent.get_hospital_ambulance_count(self) < self.ambulance_limit:
+                    self.dispatch_ambulance(closest, path)
+                else:
+                    closest.rescuer = None
+            except Exception as e:
+                print(f"Error calculating path: {e}")
+                closest.rescuer = None
+
+        future = self.parent.thread_pool.submit(
+            self.pathfinding.run_astar, self.closest_cell, closest.closest_cell
+        )
+        
+        future.add_done_callback(on_path_calculated)
         
 
     def dispatch_ambulance(self, person, path):
@@ -223,7 +324,7 @@ class Hospital:
 class Person:
     """Simple person model with an optional shelf-life timer."""
 
-    def __init__(self, name, longitude, latitude, time_to_live: float = 30.0, spawn_time: float = 0.0, pf=None, parent=None):
+    def __init__(self, name, longitude, latitude, time_to_live: float = 30.0, spawn_time: float = 0.0, pf=None, parent=None, priority=3):
         self.name = name
         self.longitude = longitude
         self.latitude = latitude
@@ -233,11 +334,14 @@ class Person:
         self.pf = pf
         self.closest_cell = None
         self.parent = parent
+        self.priority = priority
 
     def is_alive(self, now_seconds: float) -> bool:
         if (now_seconds - self.spawn_time) < self.time_to_live:
             return True
         else:
+            self.parent.game.generations.dead_people[self.name] = (self.latitude, self.longitude)
+            print('Appended new dead person to list, will remove from map immediately')
             return False
     
 
@@ -253,7 +357,12 @@ class Ambulance():
         self.long = station.longitude
         self.dispatch_started_at = pygame.time.get_ticks() / 1000.0
 
+        self.path_color = (random.randint(100, 255), random.randint(100, 255), random.randint(100, 255))
+
         self.trajectory = self.get_complete_path()
+        self.full_trajectory_cache = list(self.trajectory)
+        self.drawn_path_index = 0
+
         self.loaded = False
         self.arrival_threshold_km = 0.006
 
@@ -406,7 +515,14 @@ class Ambulance():
         self.parent.parent.remove_person(self.target)
         self.path = self.parent.pathfinding.run_astar(self.target.closest_cell, self.parent.closest_cell)
         self.target = self.parent
+        
+        # Give it a new arbitrary path color on return, or could keep it
+        self.path_color = (random.randint(100, 255), random.randint(100, 255), random.randint(100, 255))
+        
         self.trajectory = self.get_complete_path()
+        self.full_trajectory_cache = list(self.trajectory)
+        self.drawn_path_index = 0
+        
         self.update_direction()
         
     

@@ -41,8 +41,8 @@ class Game:
 		self.running = True
 
 		self.pathfinding = Pathfinding(self.loaded_map)
-		self.entities = entities.Entities(self.loaded_map, self.pathfinding)
-		self.generations = Generations(self.entities, self.loaded_map, self.game_speed)
+		self.entities = entities.Entities(self.loaded_map, self.pathfinding, self)
+		self.generations = Generations(self.entities, self.loaded_map, self)
 	def _handle_keydown(self, key: int) -> None:
 		if key == pygame.K_ESCAPE:
 			self.running = False
@@ -62,7 +62,7 @@ class Game:
 
 	def _draw_generations_hud(self, now_seconds: float) -> None:
 		panel_x, panel_y = 14, 14
-		panel_w, panel_h = 410, 180
+		panel_w, panel_h = 410, 210
 		panel_surface = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
 		panel_surface.fill(HUD_BG)
 		pygame.draw.rect(panel_surface, HUD_BORDER, panel_surface.get_rect(), 2, border_radius=6)
@@ -76,6 +76,7 @@ class Game:
 		progress = 0.0 if time_total <= 0 else min(1.0, max(0.0, time_elapsed / time_total))
 		people_count = self.generations.get_people_on_map_count()
 		ambulances_count = self.generations.get_ambulances_dispatched_count()
+		dead_count = len(self.generations.dead_people)
 
 		headline = self.ui_title_font.render(
 			f"GENERATION {self.generations.current_generation:02d}",
@@ -88,7 +89,8 @@ class Game:
 		line_2 = self.ui_font.render(f"TIME LEFT:   {time_left:05.1f}s", True, HUD_ACCENT)
 		line_3 = self.ui_font.render(f"PEOPLE ON MAP: {people_count:03d}", True, HUD_TEXT)
 		line_4 = self.ui_font.render(f"AMBULANCES DISPATCHED: {ambulances_count:03d}", True, HUD_TEXT)
-		line_5 = self.ui_small_font.render(
+		line_5 = self.ui_font.render(f"PEOPLE DEAD: {dead_count:03d}", True, HUD_TEXT)
+		line_6 = self.ui_small_font.render(
 			f"SIM SPEED: x{self.game_speed:.1f}  (UP/RIGHT faster, DOWN/LEFT slower)",
 			True,
 			HUD_TEXT_DIM,
@@ -98,6 +100,8 @@ class Game:
 		self.screen.blit(line_2, (panel_x + 14, panel_y + 76))
 		self.screen.blit(line_3, (panel_x + 14, panel_y + 108))
 		self.screen.blit(line_4, (panel_x + 14, panel_y + 132))
+		self.screen.blit(line_5, (panel_x + 14, panel_y + 156))
+		self.screen.blit(line_6, (panel_x + 14, panel_y + 180))
 		self.screen.blit(line_5, (panel_x + 14, panel_y + 156))
 
 		bar_x = panel_x + 265

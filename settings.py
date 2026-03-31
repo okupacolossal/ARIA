@@ -4,9 +4,9 @@ PERSON_SPAWNING_TIMER = 144
 GENERATION_DURATION = 86400
 
 PRIORITIES = {
-    "critical": [4, 8],
-    "serious": [8, 12],
-    "fair": [12, 16]
+    1: [4, 8],
+    2: [8, 12],
+    3: [12, 16]
 }
 
 FREGUESIA_WEIGHTS = {

@@ -10,13 +10,15 @@ class Generations:
     of expired people using Person.is_alive.
     """
 
-    def __init__(self, entities, map, game_speed):
+    def __init__(self, entities, map, game):
         self.entities = entities
         self.map = map
         self.generation_duration_seconds = GENERATION_DURATION
         self.person_timer_seconds = GENERATION_DURATION / 600.0  # 600 people per day
         self.last_spawned_time = 0.0
-        self.game_speed = game_speed
+        self.game = game
+        self.game_speed = game.game_speed
+        self.dead_people = {}
 
         self.current_generation = 0
         self.generation_started_at = None
