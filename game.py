@@ -11,11 +11,12 @@ from generations import Generations
 import entities
 
 
-HUD_BG = (7, 14, 10, 220)
-HUD_BORDER = (70, 220, 130)
-HUD_TEXT = (145, 255, 190)
-HUD_TEXT_DIM = (92, 180, 128)
-HUD_ACCENT = (250, 197, 94)
+HUD_BG       = (10, 8, 4, 215)
+HUD_BORDER   = (175, 118, 28)
+HUD_TEXT     = (238, 182, 58)
+HUD_TEXT_DIM = (132, 92, 30)
+HUD_ACCENT   = (255, 222, 108)
+HUD_DEAD     = (210, 78, 52)
 
 
 class Game:
@@ -62,12 +63,10 @@ class Game:
 
 	def _draw_generations_hud(self, now_seconds: float) -> None:
 		panel_x, panel_y = 14, 14
-		panel_w, panel_h = 410, 210
+		panel_w, panel_h = 385, 212
 		panel_surface = pygame.Surface((panel_w, panel_h), pygame.SRCALPHA)
 		panel_surface.fill(HUD_BG)
-		pygame.draw.rect(panel_surface, HUD_BORDER, panel_surface.get_rect(), 2, border_radius=6)
-
-
+		pygame.draw.rect(panel_surface, HUD_BORDER, panel_surface.get_rect(), 1, border_radius=5)
 		self.screen.blit(panel_surface, (panel_x, panel_y))
 
 		time_left = self.generations.get_time_left_in_generation(now_seconds)
@@ -78,67 +77,79 @@ class Game:
 		ambulances_count = self.generations.get_ambulances_dispatched_count()
 		dead_count = len(self.generations.dead_people)
 
-		headline = self.ui_title_font.render(
-			f"GENERATION {self.generations.current_generation:02d}",
-			True,
-			HUD_TEXT,
-		)
-		self.screen.blit(headline, (panel_x + 14, panel_y + 12))
+		px = panel_x + 16
+		py = panel_y + 13
 
-		line_1 = self.ui_font.render(f"TIME PASSED: {time_elapsed:05.1f}s / {time_total:04.0f}s", True, HUD_TEXT)
-		line_2 = self.ui_font.render(f"TIME LEFT:   {time_left:05.1f}s", True, HUD_ACCENT)
-		line_3 = self.ui_font.render(f"PEOPLE ON MAP: {people_count:03d}", True, HUD_TEXT)
-		line_4 = self.ui_font.render(f"AMBULANCES DISPATCHED: {ambulances_count:03d}", True, HUD_TEXT)
-		line_5 = self.ui_font.render(f"PEOPLE DEAD: {dead_count:03d}", True, HUD_TEXT)
-		line_6 = self.ui_small_font.render(
-			f"SIM SPEED: x{self.game_speed:.1f}  (UP/RIGHT faster, DOWN/LEFT slower)",
-			True,
-			HUD_TEXT_DIM,
-		)
+		# Header
+		aria_surf = self.ui_small_font.render("ARIA", True, HUD_TEXT_DIM)
+		gen_surf  = self.ui_title_font.render(f"GEN {self.generations.current_generation:02d}", True, HUD_TEXT)
+		self.screen.blit(aria_surf, (px, py + 5))
+		self.screen.blit(gen_surf,  (px + 46, py))
 
-		self.screen.blit(line_1, (panel_x + 14, panel_y + 52))
-		self.screen.blit(line_2, (panel_x + 14, panel_y + 76))
-		self.screen.blit(line_3, (panel_x + 14, panel_y + 108))
-		self.screen.blit(line_4, (panel_x + 14, panel_y + 132))
-		self.screen.blit(line_5, (panel_x + 14, panel_y + 156))
-		self.screen.blit(line_6, (panel_x + 14, panel_y + 180))
-		self.screen.blit(line_5, (panel_x + 14, panel_y + 156))
+		# Divider
+		div_y = py + 30
+		pygame.draw.line(self.screen, HUD_BORDER, (panel_x + 12, div_y), (panel_x + panel_w - 12, div_y), 1)
 
-		bar_x = panel_x + 265
-		bar_y = panel_y + 74
-		bar_w = 142
-		bar_h = 13
-		pygame.draw.rect(self.screen, (20, 40, 26), (bar_x, bar_y, bar_w, bar_h), border_radius=3)
-		pygame.draw.rect(self.screen, HUD_BORDER, (bar_x, bar_y, bar_w, bar_h), 1, border_radius=3)
+		# Time row
+		ty = div_y + 10
+		e_lbl = self.ui_small_font.render("ELAPSED",   True, HUD_TEXT_DIM)
+		e_val = self.ui_font.render(f"{time_elapsed:07.1f}s", True, HUD_TEXT)
+		r_lbl = self.ui_small_font.render("REMAINING", True, HUD_TEXT_DIM)
+		r_val = self.ui_font.render(f"{time_left:07.1f}s",    True, HUD_ACCENT)
+		self.screen.blit(e_lbl, (px,       ty))
+		self.screen.blit(e_val, (px,       ty + 16))
+		self.screen.blit(r_lbl, (px + 192, ty))
+		self.screen.blit(r_val, (px + 192, ty + 16))
+
+		# Progress bar
+		bar_y = ty + 48
+		bar_x = panel_x + 12
+		bar_w = panel_w - 24
+		bar_h = 7
+		pygame.draw.rect(self.screen, (22, 16, 5),  (bar_x, bar_y, bar_w, bar_h), border_radius=3)
+		pygame.draw.rect(self.screen, HUD_BORDER,   (bar_x, bar_y, bar_w, bar_h), 1, border_radius=3)
 		fill_w = int((bar_w - 4) * progress)
-		pygame.draw.rect(self.screen, HUD_ACCENT, (bar_x + 2, bar_y + 2, fill_w, bar_h - 4), border_radius=2)
+		if fill_w > 0:
+			pygame.draw.rect(self.screen, HUD_ACCENT, (bar_x + 2, bar_y + 2, fill_w, bar_h - 4), border_radius=2)
 
+		# Stats (2x2 grid)
+		sy = bar_y + 20
+		col = (panel_w - 32) // 2
+
+		def _stat(label, value, x, y, vc=None):
+			self.screen.blit(self.ui_small_font.render(label, True, HUD_TEXT_DIM), (x, y))
+			self.screen.blit(self.ui_font.render(value, True, vc or HUD_TEXT), (x, y + 16))
+
+		_stat("PEOPLE",     f"{people_count:03d}",       px,        sy)
+		_stat("DISPATCHED", f"{ambulances_count:03d}",   px + col,  sy)
+		_stat("DEAD",       f"{dead_count:03d}",          px,        sy + 38, HUD_DEAD)
+		_stat("SPEED",      f"x{self.game_speed:.1f}",   px + col,  sy + 38)
+ 
 	def _draw_retro_overlay(self) -> None:
 		pass
 
 	def _draw_retro_background(self, now_seconds: float) -> None:
-		self.screen.fill((16, 18, 20))
+		self.screen.fill((9, 7, 5))
 
 		center_x = SCREEN_WIDTH // 2
-		horizon = int(SCREEN_HEIGHT * 0.2)
-		for i in range(-24, 25):
-			offset = i * 52 + int(math.sin(now_seconds * 0.8 + i * 0.28) * 9)
+		horizon = int(SCREEN_HEIGHT * 0.18)
+		for i in range(-22, 23):
+			offset = i * 56 + int(math.sin(now_seconds * 0.65 + i * 0.25) * 7)
 			pygame.draw.line(
 				self.screen,
-				(24, 34, 30),
+				(28, 20, 7),
 				(center_x + offset, SCREEN_HEIGHT),
-				(center_x + int(offset * 0.1), horizon),
+				(center_x + int(offset * 0.08), horizon),
 				1,
 			)
 
-		for row in range(8):
-			y = int(horizon + (row ** 1.65) * 14)
+		for row in range(7):
+			y = int(horizon + (row ** 1.7) * 16)
 			if y < SCREEN_HEIGHT:
-				alpha = max(12, 52 - row * 5)
-				pygame.draw.line(self.screen, (30, 40, 36, alpha), (0, y), (SCREEN_WIDTH, y), 1)
+				pygame.draw.line(self.screen, (32, 23, 8), (0, y), (SCREEN_WIDTH, y), 1)
 
 		vignette = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT), pygame.SRCALPHA)
-		pygame.draw.rect(vignette, (0, 0, 0, 60), vignette.get_rect(), width=45, border_radius=28)
+		pygame.draw.rect(vignette, (0, 0, 0, 75), vignette.get_rect(), width=55, border_radius=22)
 		self.screen.blit(vignette, (0, 0))
 
 	def run(self) -> None:

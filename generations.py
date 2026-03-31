@@ -1,6 +1,7 @@
 from settings import GENERATION_DURATION, PERSON_SPAWNING_TIMER, PRIORITIES
 import random
 import time
+from helpers import Helpers as hlp
 
 class Generations:
     """Minimal generation/timer manager.
@@ -24,11 +25,51 @@ class Generations:
         self.generation_started_at = None
         self.ambulances_dispatched = 0
 
+        self.ghost_station = None
+
+        self.past_generations_stats = {}
+
+    def _reset_dead_counter(self):
+        self.dead_people = {}
+        # Keep auxiliary entity-level tracking in sync if used elsewhere.
+        if hasattr(self.entities, "dead_people"):
+            self.entities.dead_people = []
+
+    def _predict_best_station_location(self):
+        
+        past_stats = self.past_generation_stats[:10]
+
+    def _update_test_station(self):
+        best_location = self._predict_best_station_location()
+        if best_location is None:
+            return
+
+        best_lat, best_lon = best_location
+        self.entities.upsert_test_station(best_lon, best_lat, self.current_generation)
+        
+
     def start_new_generation(self, now_seconds: float):
         # Advance generation index and let custom spawn hook run.
+
+        if self.dead_people:
+            self.past_generations_stats[self.current_generation] = {
+                "deaths": len(self.dead_people),
+                "ambulances": self.ambulances_dispatched,
+                "average_death_location": self.average_location(self.dead_people.values())
+
+            }
+            self._update_test_station()
+        
         self.current_generation += 1
         self.generation_started_at = now_seconds
         self.last_spawned_time = now_seconds
+        self._reset_dead_counter()
+        self.ambulances_dispatched = 0
+
+        self.clear_people()
+        self.clear_ambulances()
+
+        print('generation finished! last generation stats:', self.past_generations_stats.get(self.current_generation - 1, {}))
 
     def update(self, now_seconds: float):
         # Bootstrap first generation on first frame.
@@ -73,4 +114,7 @@ class Generations:
     def spawn_person(self, spawn_time):
         self.entities.add_person(spawn_time)
         
-        
+    def average_location(self, people):
+        avg_lat = sum(lat for lat, _ in people) / len(people)
+        avg_lon = sum(lon for _, lon in people) / len(people)
+        return avg_lat, avg_lon

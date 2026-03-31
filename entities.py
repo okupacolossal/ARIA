@@ -15,8 +15,13 @@ class Entities:
         self.sprites = self._load_sprites()
         self.pathfinding = pf
         self.game = game
+        self.station_name_font = pygame.font.SysFont("couriernew", 14, bold=True)
 
-        self.hospitals = [Hospital("Hospital Santa Maria", -8.6095796, 41.1600076, pf, self)]
+        self.hospitals = [
+            Hospital("Hospital Santa Maria", -8.6095796, 41.1600076, pf, self),
+            Hospital("Hospital de São João", -8.611, 41.153, pf, self),
+            Hospital("Hospital de Santo António", -8.630, 41.149, pf, self),
+            Hospital("Delegação Regional do Norte", -8.630, 41.140, pf, self),]
 
         # Background thread pool for pathfinding and other heavy lifting
         import concurrent.futures
@@ -26,12 +31,32 @@ class Entities:
         self.people = []
         self.ambulances = {}
         self.dead_people = []
+        self.test_station = None
 
     def register_ambulance(self, ambulance):
         self.ambulances[id(ambulance)] = ambulance
 
     def unregister_ambulance(self, ambulance):
         self.ambulances.pop(id(ambulance), None)
+
+    def upsert_test_station(self, longitude: float, latitude: float, generation_number: int):
+        station_name = f"Test Station #{generation_number}"
+        if self.test_station is None:
+            self.test_station = Hospital(
+                station_name,
+                longitude,
+                latitude,
+                self.pathfinding,
+                self,
+                is_test_station=True,
+            )
+            self.hospitals.append(self.test_station)
+            return
+
+        self.test_station.name = station_name
+        self.test_station.longitude = longitude
+        self.test_station.latitude = latitude
+        self.test_station.closest_cell = self.pathfinding.get_closest_cell(longitude, latitude)
 
     def get_hospital_ambulance_count(self, hospital) -> int:
         return sum(1 for ambulance in self.ambulances.values() if ambulance.parent is hospital)
@@ -78,21 +103,12 @@ class Entities:
         )
 
     def _draw_ambulance(self, screen, ambulance, map, now_seconds: float):
-        
-        # Animate and draw the path
-        if hasattr(ambulance, 'full_trajectory_cache') and len(ambulance.full_trajectory_cache) > 1:
-            if ambulance.drawn_path_index < len(ambulance.full_trajectory_cache):
-                # Animate 3 waypoints per frame to make it fast but visible
-                ambulance.drawn_path_index = min(len(ambulance.full_trajectory_cache), ambulance.drawn_path_index + 3)
-            
-            points = []
-            for i in range(ambulance.drawn_path_index):
-                lat, lon, _ = ambulance.full_trajectory_cache[i]
-                sx, sy = self._geo_to_screen(lon, lat, map)
-                points.append((sx, sy))
-                
-            if len(points) >= 2:
-                pygame.draw.lines(screen, ambulance.path_color, False, points, 3)
+
+        # Draw the cached screen-space path trail (skip at high speeds — invisible anyway)
+        if self.game.game_speed <= 480 and hasattr(ambulance, 'screen_path_cache'):
+            pts = ambulance.screen_path_cache[:ambulance.drawn_path_index]
+            if len(pts) >= 2:
+                pygame.draw.lines(screen, ambulance.path_color, False, pts, 3)
 
         x, y = self._geo_to_screen(ambulance.long, ambulance.lat, map)
         rotation = -ambulance.direction
@@ -148,19 +164,28 @@ class Entities:
     def _draw_hospital(self, screen, hospital, map, now_seconds: float):
         x, y = self._geo_to_screen(hospital.longitude, hospital.latitude, map)
         pulse = 0.5 + 0.5 * (1.0 + pygame.math.Vector2(1, 0).rotate(now_seconds * 140.0).x)
+        pulse_slow = 0.5 + 0.5 * (1.0 + pygame.math.Vector2(1, 0).rotate(now_seconds * 80.0).x)
+        mouse_x, mouse_y = pygame.mouse.get_pos()
 
         glow_radius = int(20 + 8 * pulse)
         glow_surface = pygame.Surface((glow_radius * 2 + 4, glow_radius * 2 + 4), pygame.SRCALPHA)
+        palette = hospital.palette
+
+        label_surface = self.station_name_font.render(hospital.name, True, palette["label"])
+        label_rect = label_surface.get_rect(center=(x, y - 26))
+        shadow_surface = self.station_name_font.render(hospital.name, True, palette["shadow"])
+        shadow_rect = shadow_surface.get_rect(center=(x + 1, y - 25))
+
         pygame.draw.circle(
             glow_surface,
-            (210, 255, 220, int(80 + 80 * pulse)),
+            (palette["outer"][0], palette["outer"][1], palette["outer"][2], int(70 + 70 * pulse)),
             (glow_radius + 2, glow_radius + 2),
             glow_radius,
             0,
         )
         pygame.draw.circle(
             glow_surface,
-            (60, 170, 90, int(70 + 70 * pulse)),
+            (palette["inner"][0], palette["inner"][1], palette["inner"][2], int(65 + 65 * pulse)),
             (glow_radius + 2, glow_radius + 2),
             max(6, glow_radius // 2),
             0,
@@ -170,6 +195,65 @@ class Entities:
         station = self.sprites["hospital"]
         station_rect = station.get_rect(center=(x, y))
         screen.blit(station, station_rect)
+
+        if hospital.is_test_station:
+            # Make the unique station read as a strategic target point.
+            halo_radius = int(28 + 14 * pulse)
+            halo_surface = pygame.Surface((halo_radius * 2 + 4, halo_radius * 2 + 4), pygame.SRCALPHA)
+            pygame.draw.circle(
+                halo_surface,
+                (226, 242, 255, 130),
+                (halo_radius + 2, halo_radius + 2),
+                halo_radius,
+                3,
+            )
+            pygame.draw.circle(
+                halo_surface,
+                (176, 214, 248, 110),
+                (halo_radius + 2, halo_radius + 2),
+                max(8, halo_radius // 2),
+                2,
+            )
+            scan_radius = int(8 + pulse_slow * (halo_radius - 6))
+            pygame.draw.circle(
+                halo_surface,
+                (210, 235, 255, 90),
+                (halo_radius + 2, halo_radius + 2),
+                scan_radius,
+                1,
+            )
+            screen.blit(halo_surface, (x - halo_radius - 2, y - halo_radius - 2))
+
+            # Bright center marker to remain visible above roads and boundaries.
+            pygame.draw.circle(screen, (242, 250, 255), (x, y), 5)
+            pygame.draw.circle(screen, (150, 196, 235), (x, y), 2)
+
+            # Always-visible station banner for fast identification.
+            tag_text = self.station_name_font.render(hospital.name.upper(), True, (226, 240, 255))
+            tag_shadow = self.station_name_font.render(hospital.name.upper(), True, (30, 44, 60))
+            tag_rect = tag_text.get_rect(center=(x, y - 40))
+            tag_bg = pygame.Surface((tag_rect.width + 16, tag_rect.height + 8), pygame.SRCALPHA)
+            pygame.draw.rect(tag_bg, (18, 28, 40, 210), tag_bg.get_rect(), border_radius=5)
+            pygame.draw.rect(tag_bg, (142, 182, 224, 230), tag_bg.get_rect(), 1, border_radius=5)
+            screen.blit(tag_bg, (tag_rect.left - 8, tag_rect.top - 4))
+            screen.blit(tag_shadow, tag_rect.move(1, 1))
+            screen.blit(tag_text, tag_rect)
+
+        hover_radius = max(station_rect.width, station_rect.height) // 2 + 6
+        is_station_hovered = (mouse_x - x) ** 2 + (mouse_y - y) ** 2 <= hover_radius ** 2
+        is_label_hovered = label_rect.inflate(10, 6).collidepoint(mouse_x, mouse_y)
+
+        if is_station_hovered or is_label_hovered:
+            label_bg = pygame.Surface((label_rect.width + 10, label_rect.height + 6), pygame.SRCALPHA)
+            pygame.draw.rect(
+                label_bg,
+                (18, 24, 22, 190),
+                label_bg.get_rect(),
+                border_radius=4,
+            )
+            screen.blit(label_bg, (label_rect.left - 5, label_rect.top - 3))
+            screen.blit(shadow_surface, shadow_rect)
+            screen.blit(label_surface, label_rect)
 
     def draw(self, screen, map, now_seconds: float = 0.0):
         for hospital in self.hospitals:
@@ -235,20 +319,59 @@ class Entities:
 class Hospital:
     """Dispatch center that scans for unassigned people and sends ambulances."""
 
-    def __init__(self, name, longitude, latitude, pf, entities):
+    def __init__(self, name, longitude, latitude, pf, entities, is_test_station: bool = False):
         self.name = name
         self.longitude = longitude
         self.latitude = latitude
         self.pathfinding = pf
         self.map = pf.map
         self.parent = entities
+        self.is_test_station = is_test_station
+        self.palette = self._random_palette()
         
         self.pursuit = False
         self.scan_interval_seconds = 1.0
         self.last_scan_seconds = -self.scan_interval_seconds
         self.closest_cell = self.pathfinding.get_closest_cell(self.longitude, self.latitude)
 
-        self.ambulance_limit = 2
+        self.ambulance_limit = 1
+
+    def _random_palette(self):
+        if self.is_test_station:
+            return {
+                "outer": (190, 220, 248),
+                "inner": (95, 132, 170),
+                "label": (218, 236, 255),
+                "shadow": (40, 58, 74),
+            }
+
+        base = random.randint(110, 210)
+        outer = (
+            max(80, min(235, base + random.randint(8, 24))),
+            max(90, min(245, base + random.randint(10, 28))),
+            max(80, min(235, base + random.randint(2, 20))),
+        )
+        inner = (
+            max(50, outer[0] - random.randint(28, 46)),
+            max(60, outer[1] - random.randint(34, 52)),
+            max(50, outer[2] - random.randint(28, 46)),
+        )
+        label = (
+            min(250, outer[0] + 16),
+            min(250, outer[1] + 14),
+            min(250, outer[2] + 16),
+        )
+        shadow = (
+            max(20, inner[0] - 28),
+            max(24, inner[1] - 28),
+            max(20, inner[2] - 28),
+        )
+        return {
+            "outer": outer,
+            "inner": inner,
+            "label": label,
+            "shadow": shadow,
+        }
     
     def analyze_surroundings(self, people): 
         if self.parent.get_hospital_ambulance_count(self) >= self.ambulance_limit:
@@ -268,9 +391,10 @@ class Hospital:
                 person.longitude,
             )
 
-            heapq.heappush(list_of_people, (person.priority, distance, person))
+            # Add a numeric tiebreaker so heap never compares Person objects.
+            heapq.heappush(list_of_people, (person.priority, distance, id(person), person))
 
-        closest = heapq.heappop(list_of_people)[2] if list_of_people else None
+        closest = heapq.heappop(list_of_people)[3] if list_of_people else None
         if closest is None:
             return
 
@@ -341,7 +465,6 @@ class Person:
             return True
         else:
             self.parent.game.generations.dead_people[self.name] = (self.latitude, self.longitude)
-            print('Appended new dead person to list, will remove from map immediately')
             return False
     
 
@@ -362,6 +485,7 @@ class Ambulance():
         self.trajectory = self.get_complete_path()
         self.full_trajectory_cache = list(self.trajectory)
         self.drawn_path_index = 0
+        self.screen_path_cache = self._precompute_screen_path()
 
         self.loaded = False
         self.arrival_threshold_km = 0.006
@@ -373,7 +497,17 @@ class Ambulance():
             self.direction = 0
             
 
+    def _precompute_screen_path(self):
+        m = self.parent.map
+        return [
+            hlp.transform_coordinates(lat, lon, m.min_latitude, m.max_latitude, m.min_longitude, m.max_longitude)
+            for lat, lon, _ in self.full_trajectory_cache
+        ]
+
     def update(self, dt_seconds: float, speed_multiplier: float = 1.0):
+        advance = max(3, int(speed_multiplier / 15))
+        self.drawn_path_index = min(len(self.full_trajectory_cache), self.drawn_path_index + advance)
+
         if not self.trajectory or not self.trajectory_target:
 
             if not self.loaded:
@@ -522,7 +656,8 @@ class Ambulance():
         self.trajectory = self.get_complete_path()
         self.full_trajectory_cache = list(self.trajectory)
         self.drawn_path_index = 0
-        
+        self.screen_path_cache = self._precompute_screen_path()
+
         self.update_direction()
         
     
