@@ -52,3 +52,31 @@ class Helpers:
         lon = math.cos(radians)
         lat = math.sin(radians)
         return (lon, lat)
+    
+    @staticmethod
+    def lerp_color(color1: tuple, color2: tuple, t: float) -> tuple:
+        """Linearly interpolate between two colors. t=0 returns color1, t=1 returns color2."""
+        t = max(0.0, min(1.0, t))
+        
+        # Handle colors with alpha channel (4-tuple)
+        if len(color1) == 4 and len(color2) == 4:
+            return tuple(int(c1 + (c2 - c1) * t) for c1, c2 in zip(color1, color2))
+        # Handle RGB colors (3-tuple)
+        return tuple(int(c1 + (c2 - c1) * t) for c1, c2 in zip(color1, color2))
+    
+    @staticmethod
+    def get_theme_color(palette_day: dict, palette_night: dict, color_key: str, day_phase: float) -> tuple:
+        """
+        Get a color that interpolates between day and night themes.
+        day_phase: 0.0-0.5 = transition from amber to blue (0 to 100% transition)
+                  1.0 = fully night (blue)
+        """
+        # Remap phase to transition factor
+        if day_phase <= 0.5:
+            transition = day_phase * 2.0  # 0.0-0.5 becomes 0.0-1.0
+        else:
+            transition = 1.0  # After transition, stay at full night
+        
+        color_day = palette_day.get(color_key, (255, 255, 255))
+        color_night = palette_night.get(color_key, (0, 0, 0))
+        return Helpers.lerp_color(color_day, color_night, transition)

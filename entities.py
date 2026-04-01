@@ -4,7 +4,7 @@ import pygame
 from helpers import Helpers as hlp
 import heapq
 import random
-from settings import GENERATION_DURATION, PERSON_SPAWNING_TIMER, PRIORITIES, FREGUESIA_WEIGHTS
+from settings import GENERATION_DURATION, PERSON_SPAWNING_TIMER, PRIORITIES, FREGUESIA_WEIGHTS, AMBER_PALETTE
 
 
 class Entities:
@@ -21,7 +21,15 @@ class Entities:
             Hospital("Hospital Santa Maria", -8.6095796, 41.1600076, pf, self),
             Hospital("Hospital de São João", -8.611, 41.153, pf, self),
             Hospital("Hospital de Santo António", -8.630, 41.149, pf, self),
-            Hospital("Delegação Regional do Norte", -8.630, 41.140, pf, self),]
+            Hospital("Delegação Regional do Norte", -8.630, 41.140, pf, self),
+            Hospital("INEM Base - Regimento Transmissões", -8.640571, 41.181102, pf, self),
+            Hospital("Regimento Sapadores Bombeiros Porto", -8.614821, 41.163321, pf, self),
+            Hospital("Bombeiros Voluntários Portuenses", -8.641518, 41.171000, pf, self),
+            Hospital("Cruz Vermelha Portuguesa - Porto", -8.623861, 41.160228, pf, self),
+            Hospital("Bombeiros Voluntários Coimbrões", -8.629108, 41.126606, pf, self),
+            Hospital("Bombeiros Voluntários Valadares", -8.637053, 41.095083, pf, self),
+            Hospital("Bombeiros Voluntários Leça do Balio", -8.632757, 41.211720, pf, self),
+        ]
 
         # Background thread pool for pathfinding and other heavy lifting
         import concurrent.futures
@@ -71,7 +79,7 @@ class Entities:
         ambulance_lights.fill((255, 80, 80, 235), special_flags=pygame.BLEND_RGBA_MULT)
         ambulance_mask = pygame.mask.from_surface(ambulance_base)
         ambulance_outline = ambulance_mask.to_surface(setcolor=(245, 246, 230, 190), unsetcolor=(0, 0, 0, 0))
-        hospital_base = self._load_sprite("images/hospital.png", (34, 34))
+        hospital_base = self._load_sprite("images/hospital.png", (24, 24))
         return {
             "hospital": hospital_base,
             "person": self._load_sprite("images/person.png", (16, 16)),
@@ -128,18 +136,22 @@ class Entities:
         lights_rect = lights.get_rect(center=(x, y))
         screen.blit(lights, lights_rect)
 
+        # Static amber beacon colors
+        beacon_base = (255, 180, 50)
+        beacon_accent = (220, 155, 35)
+        
         beacon_radius = int(6 + 6 * pulse)
         beacon_surface = pygame.Surface((beacon_radius * 2 + 4, beacon_radius * 2 + 4), pygame.SRCALPHA)
         pygame.draw.circle(
             beacon_surface,
-            (255, 70, 60, int(70 + 90 * pulse)),
+            (*beacon_base, int(70 + 90 * pulse)),
             (beacon_radius + 2, beacon_radius + 2),
             beacon_radius,
             0,
         )
         pygame.draw.circle(
             beacon_surface,
-            (255, 210, 160, int(120 + 90 * pulse)),
+            (*beacon_accent, int(120 + 90 * pulse)),
             (beacon_radius + 2, beacon_radius + 2),
             max(2, beacon_radius // 3),
             0,
@@ -151,10 +163,14 @@ class Entities:
             ripple_progress = dispatch_age / 1.2
             radius = int(8 + 34 * ripple_progress)
             alpha = int(120 * (1.0 - ripple_progress))
+            
+            # Static amber ripple color
+            ripple_color = (255, 180, 50)
+            
             ripple_surface = pygame.Surface((radius * 2 + 4, radius * 2 + 4), pygame.SRCALPHA)
             pygame.draw.circle(
                 ripple_surface,
-                (255, 212, 120, alpha),
+                (*ripple_color, alpha),
                 (radius + 2, radius + 2),
                 radius,
                 2,
@@ -167,9 +183,11 @@ class Entities:
         pulse_slow = 0.5 + 0.5 * (1.0 + pygame.math.Vector2(1, 0).rotate(now_seconds * 80.0).x)
         mouse_x, mouse_y = pygame.mouse.get_pos()
 
-        glow_radius = int(20 + 8 * pulse)
+        glow_radius = int(14 + 4 * pulse)
         glow_surface = pygame.Surface((glow_radius * 2 + 4, glow_radius * 2 + 4), pygame.SRCALPHA)
-        palette = hospital.palette
+        
+        # Use static amber palette for all hospitals
+        palette = hospital.get_static_palette()
 
         label_surface = self.station_name_font.render(hospital.name, True, palette["label"])
         label_rect = label_surface.get_rect(center=(x, y - 26))
@@ -178,16 +196,16 @@ class Entities:
 
         pygame.draw.circle(
             glow_surface,
-            (palette["outer"][0], palette["outer"][1], palette["outer"][2], int(70 + 70 * pulse)),
+            (palette["outer"][0], palette["outer"][1], palette["outer"][2], int(10 + 10 * pulse)),
             (glow_radius + 2, glow_radius + 2),
             glow_radius,
             0,
         )
         pygame.draw.circle(
             glow_surface,
-            (palette["inner"][0], palette["inner"][1], palette["inner"][2], int(65 + 65 * pulse)),
+            (palette["inner"][0], palette["inner"][1], palette["inner"][2], int(8 + 8 * pulse)),
             (glow_radius + 2, glow_radius + 2),
-            max(6, glow_radius // 2),
+            max(4, glow_radius // 2),
             0,
         )
         screen.blit(glow_surface, (x - glow_radius - 2, y - glow_radius - 2))
@@ -197,27 +215,27 @@ class Entities:
         screen.blit(station, station_rect)
 
         if hospital.is_test_station:
-            # Make the unique station read as a strategic target point.
-            halo_radius = int(28 + 14 * pulse)
+            # Keep test station visible but still very subtle and amber.
+            halo_radius = int(18 + 6 * pulse)
             halo_surface = pygame.Surface((halo_radius * 2 + 4, halo_radius * 2 + 4), pygame.SRCALPHA)
             pygame.draw.circle(
                 halo_surface,
-                (226, 242, 255, 130),
+                (255, 190, 70, 14),
                 (halo_radius + 2, halo_radius + 2),
                 halo_radius,
-                3,
+                2,
             )
             pygame.draw.circle(
                 halo_surface,
-                (176, 214, 248, 110),
+                (220, 155, 35, 10),
                 (halo_radius + 2, halo_radius + 2),
-                max(8, halo_radius // 2),
-                2,
+                max(6, halo_radius // 2),
+                1,
             )
             scan_radius = int(8 + pulse_slow * (halo_radius - 6))
             pygame.draw.circle(
                 halo_surface,
-                (210, 235, 255, 90),
+                (255, 208, 82, 8),
                 (halo_radius + 2, halo_radius + 2),
                 scan_radius,
                 1,
@@ -255,9 +273,9 @@ class Entities:
             screen.blit(shadow_surface, shadow_rect)
             screen.blit(label_surface, label_rect)
 
-    def draw(self, screen, map, now_seconds: float = 0.0):
+    def draw(self, screen, map, sim_seconds: float = 0.0):
         for hospital in self.hospitals:
-            self._draw_hospital(screen, hospital, map, now_seconds)
+            self._draw_hospital(screen, hospital, map, sim_seconds)
 
         for person in self.people:
             self._draw_sprite_at_geo(
@@ -269,7 +287,7 @@ class Entities:
             )
 
         for ambulance in list(self.ambulances.values()):
-            self._draw_ambulance(screen, ambulance, map, now_seconds)
+            self._draw_ambulance(screen, ambulance, map, sim_seconds)
     
     def update(self, now_seconds: float, dt_seconds: float, speed_multiplier: float = 1.0):
         for hospital in self.hospitals:
@@ -286,13 +304,34 @@ class Entities:
         values = list(PRIORITIES.keys())
         priority = random.choice(values)
         time_to_live = random.randint(PRIORITIES[priority][0], PRIORITIES[priority][1]) * 60 
-        freguesia = random.choices(
-        list(FREGUESIA_WEIGHTS.keys()),
-        weights=list(FREGUESIA_WEIGHTS.values()),
-        k=1
-        )[0]
+        longitude = None
+        latitude = None
+        spawn_weights = FREGUESIA_WEIGHTS
+        if hasattr(self.game, "generations") and hasattr(self.game.generations, "get_spawn_weights"):
+            runtime_weights = self.game.generations.get_spawn_weights()
+            if runtime_weights:
+                spawn_weights = runtime_weights
 
-        longitude, latitude = self.map.get_random_available_point_in_freguesia(freguesia)
+        # Retry a few weighted freguesia picks because some freguesias may have no indexed nodes.
+        for _ in range(8):
+            freguesia = random.choices(
+                list(spawn_weights.keys()),
+                weights=list(spawn_weights.values()),
+                k=1,
+            )[0]
+            point = self.map.get_random_available_point_in_freguesia(freguesia)
+            if point is not None:
+                longitude, latitude = point
+                break
+
+        # Final fallback: sample any node from the graph to avoid spawn crashes.
+        if longitude is None or latitude is None:
+            all_nodes = list(self.map.G.nodes())
+            if not all_nodes:
+                return
+            node_id = random.choice(all_nodes)
+            node_data = self.map.G.nodes[node_id]
+            longitude, latitude = node_data["x"], node_data["y"]
 
         longitude = max(self.map.min_longitude, min(self.map.max_longitude, longitude))
         latitude = max(self.map.min_latitude, min(self.map.max_latitude, latitude))
@@ -373,7 +412,21 @@ class Hospital:
             "shadow": shadow,
         }
     
-    def analyze_surroundings(self, people): 
+    def get_static_palette(self):
+        """Return a static amber palette for the hospital."""
+        if self.is_test_station:
+            # Test stations use amber colors
+            return {
+                "outer": (255, 180, 50),      # Bright amber
+                "inner": (220, 155, 35),      # Mid amber
+                "label": (255, 222, 108),     # Accent amber
+                "shadow": (48, 32, 5),        # Very dark amber
+            }
+        else:
+            # Regular hospitals use their custom palette
+            return self.palette
+    
+    def analyze_surroundings(self, people):
         if self.parent.get_hospital_ambulance_count(self) >= self.ambulance_limit:
             return
 
@@ -480,7 +533,25 @@ class Ambulance():
         self.long = station.longitude
         self.dispatch_started_at = pygame.time.get_ticks() / 1000.0
 
-        self.path_color = (random.randint(100, 255), random.randint(100, 255), random.randint(100, 255))
+        # Generate amber-based trail colors with randomization
+        # Create several distinct amber variants for visual distinction
+        amber_variants = [
+            (255, 200, 50),   # Bright amber
+            (220, 160, 30),   # Deep amber
+            (255, 180, 60),   # Light amber
+            (200, 140, 20),   # Dark amber
+            (240, 170, 40),   # Medium amber
+            (255, 210, 80),   # Pale amber
+            (210, 150, 10),   # Very dark amber
+        ]
+        base_color = random.choice(amber_variants)
+        # Add slight randomization to chosen variant
+        variation = random.randint(-15, 15)
+        self.path_color = (
+            max(0, min(255, base_color[0] + variation)),
+            max(0, min(255, base_color[1] + variation)),
+            max(0, min(255, base_color[2] + variation)),
+        )
 
         self.trajectory = self.get_complete_path()
         self.full_trajectory_cache = list(self.trajectory)
@@ -653,7 +724,24 @@ class Ambulance():
         self.target = self.parent
         self.trajectory = []
         self.trajectory_target = None
-        self.path_color = (random.randint(100, 255), random.randint(100, 255), random.randint(100, 255))
+        
+        # Change to a different amber variant for return trip
+        amber_variants = [
+            (255, 200, 50),   # Bright amber
+            (220, 160, 30),   # Deep amber
+            (255, 180, 60),   # Light amber
+            (200, 140, 20),   # Dark amber
+            (240, 170, 40),   # Medium amber
+            (255, 210, 80),   # Pale amber
+            (210, 150, 10),   # Very dark amber
+        ]
+        base_color = random.choice(amber_variants)
+        variation = random.randint(-15, 15)
+        self.path_color = (
+            max(0, min(255, base_color[0] + variation)),
+            max(0, min(255, base_color[1] + variation)),
+            max(0, min(255, base_color[2] + variation)),
+        )
 
         def on_return_path(future):
             try:

@@ -8,8 +8,14 @@ import random
 from helpers import Helpers as hlp
 import geopandas as gpd
 
-class Map:
+# Subtle static amber colors for streets and boundaries
+STREET_COLOR = (80, 60, 20)                    # Subtle amber streets
+FREGUESIA_BOUNDARY_COLOR = (110, 85, 30)      # Subtle amber borders
+FREGUESIA_LABEL_COLOR = (200, 160, 60)        # Amber labels
+FREGUESIA_LABEL_SHADOW_COLOR = (40, 30, 10)   # Dark amber shadow
 
+
+class Map:
     def __init__(self, screen):
         self.screen = screen
         self.freguesia_font = pygame.font.SysFont("couriernew", 14, bold=True)
@@ -22,7 +28,7 @@ class Map:
             return ox.load_graphml("porto_map.graphml")
 
         center = (41.14961, -8.61099)
-        graph = ox.graph_from_point(center, dist=5000, network_type="drive")
+        graph = ox.graph_from_point(center, dist=7000, network_type="drive")
         ox.save_graphml(graph, "porto_map.graphml")
         return graph
 
@@ -249,22 +255,26 @@ class Map:
         return self._build_screen_nodes()
 
     def draw(self):
+        # Draw streets with static amber color
         for u, v, data in self.G.edges(data=True):
             x1, y1 = self.nodes[u]
             x2, y2 = self.nodes[v]
-            pygame.draw.line(self.screen, data['line_color'], (x1, y1), (x2, y2), data['line_thickness'])
+            pygame.draw.line(self.screen, STREET_COLOR, (x1, y1), (x2, y2), data['line_thickness'])
 
-        self._draw_simple_freguesia_boundaries()
+        # Draw freguesia boundaries with static amber color
+        for boundary in self.freguesia_screen_boundaries:
+            coords = boundary["coords"]
+            if len(coords) < 2:
+                continue
+            pygame.draw.polygon(self.screen, FREGUESIA_BOUNDARY_COLOR, coords, width=1)
 
+        # Draw freguesia labels with static amber color
         for name, screen_x, screen_y in self.freguesia_screen_labels:
-            label_surface = self.freguesia_font.render(name.upper(), True, (126, 176, 138))
+            label_surface = self.freguesia_font.render(name.upper(), True, FREGUESIA_LABEL_COLOR)
             label_rect = label_surface.get_rect(center=(screen_x, screen_y))
 
-            shadow_surface = self.freguesia_font.render(name.upper(), True, (34, 52, 42))
+            shadow_surface = self.freguesia_font.render(name.upper(), True, FREGUESIA_LABEL_SHADOW_COLOR)
             shadow_rect = shadow_surface.get_rect(center=(screen_x + 1, screen_y + 1))
 
             self.screen.blit(shadow_surface, shadow_rect)
             self.screen.blit(label_surface, label_rect)
-
-             
-        
