@@ -1,7 +1,8 @@
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
 PERSON_SPAWNING_TIMER = 144
-GENERATION_DURATION = 86400
+GENERATION_DURATION = 3600   # 1 simulated hour per generation (compressed from 24h)
+PEOPLE_PER_GENERATION = 50   # ~1200/day equivalent; 72 s between spawns
 
 PRIORITIES = {
     1: [8, 15],

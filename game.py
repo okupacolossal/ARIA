@@ -35,9 +35,9 @@ class Game:
 			self.clock,
 			lambda: Map(self.screen),
 		)
-		self.game_speed = 60.0
+		self.game_speed = 360.0
 		self.min_game_speed = 1.0
-		self.max_game_speed = 7200.0
+		self.max_game_speed = 14400.0
 		self.simulation_now_seconds = 0.0
 		self.running = True
 

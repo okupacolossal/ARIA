@@ -1,4 +1,4 @@
-from settings import GENERATION_DURATION, PERSON_SPAWNING_TIMER, PRIORITIES
+from settings import GENERATION_DURATION, PERSON_SPAWNING_TIMER, PRIORITIES, PEOPLE_PER_GENERATION
 import random
 import time
 from helpers import Helpers as hlp
@@ -15,7 +15,7 @@ class Generations:
         self.entities = entities
         self.map = map
         self.generation_duration_seconds = GENERATION_DURATION
-        self.person_timer_seconds = GENERATION_DURATION / 600.0  # 600 people per day
+        self.person_timer_seconds = GENERATION_DURATION / PEOPLE_PER_GENERATION
         self.last_spawned_time = 0.0
         self.game = game
         self.game_speed = game.game_speed
@@ -37,7 +37,17 @@ class Generations:
 
     def _predict_best_station_location(self):
         
-        past_stats = self.past_generation_stats[:10]
+        last_avg_locations = [stats["average_death_location"] for stats in list(self.past_generations_stats.values())[-10:]]
+        
+        estimate_x = last_avg_locations[-1][0]
+        estimate_y = last_avg_locations[-1][1]
+
+        for loc in last_avg_locations:
+            alpha = 0.1
+            estimate_x = alpha * loc[0] + (1 - alpha) * estimate_x if self.ghost_station else loc[0]
+            estimate_y = alpha * loc[1] + (1 - alpha) * estimate_y if self.ghost_station else loc[1]
+
+        return estimate_x, estimate_y
 
     def _update_test_station(self):
         best_location = self._predict_best_station_location()

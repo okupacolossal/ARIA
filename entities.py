@@ -488,6 +488,7 @@ class Ambulance():
         self.screen_path_cache = self._precompute_screen_path()
 
         self.loaded = False
+        self._computing_return_path = False
         self.arrival_threshold_km = 0.006
 
         if self.trajectory:
@@ -512,7 +513,7 @@ class Ambulance():
 
             if not self.loaded:
                 self.transport_target()
-            elif self.loaded and hlp.get_distance(self.lat, self.long, self.parent.latitude, self.parent.longitude) < 0.1:
+            elif self.loaded and not self._computing_return_path and hlp.get_distance(self.lat, self.long, self.parent.latitude, self.parent.longitude) < 0.1:
                 self.parent.parent.unregister_ambulance(self)
 
             return
@@ -644,20 +645,32 @@ class Ambulance():
         return cleaned_path
 
     def transport_target(self):
-        # Once the person is reached, remove them and route back to station.
+        # Once the person is reached, remove them and route back to station asynchronously.
         self.loaded = True
+        self._computing_return_path = True
         self.parent.parent.remove_person(self.target)
-        self.path = self.parent.pathfinding.run_astar(self.target.closest_cell, self.parent.closest_cell)
+        pickup_cell = self.target.closest_cell
         self.target = self.parent
-        
-        # Give it a new arbitrary path color on return, or could keep it
+        self.trajectory = []
+        self.trajectory_target = None
         self.path_color = (random.randint(100, 255), random.randint(100, 255), random.randint(100, 255))
-        
-        self.trajectory = self.get_complete_path()
-        self.full_trajectory_cache = list(self.trajectory)
-        self.drawn_path_index = 0
-        self.screen_path_cache = self._precompute_screen_path()
 
-        self.update_direction()
+        def on_return_path(future):
+            try:
+                self.path = future.result()
+                self.trajectory = self.get_complete_path()
+                self.full_trajectory_cache = list(self.trajectory)
+                self.drawn_path_index = 0
+                self.screen_path_cache = self._precompute_screen_path()
+                if self.trajectory:
+                    self.update_direction()
+            except Exception as e:
+                print(f"Error calculating return path: {e}")
+            finally:
+                self._computing_return_path = False
+
+        self.parent.parent.thread_pool.submit(
+            self.parent.pathfinding.run_astar, pickup_cell, self.parent.closest_cell
+        ).add_done_callback(on_return_path)
         
     
